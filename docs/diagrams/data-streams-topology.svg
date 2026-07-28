@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="620" viewBox="0 0 1040 620" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto">
+      <path d="M1,1 L10,5 L1,9" fill="none" stroke="#00838F" stroke-width="1.7"/>
+    </marker>
+    <marker id="arrb" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto">
+      <path d="M1,1 L10,5 L1,9" fill="none" stroke="#0057B8" stroke-width="1.7"/>
+    </marker>
+    <marker id="arrg" markerWidth="12" markerHeight="12" refX="3" refY="5" orient="auto">
+      <path d="M10,1 L1,5 L10,9" fill="none" stroke="#0057B8" stroke-width="1.7"/>
+    </marker>
+  </defs>
+  <rect width="1040" height="620" fill="#ffffff"/>
+  <text x="30" y="40" font-size="24" font-weight="700" fill="#1b2226">Two Data Streams topics per peer pair</text>
+  <text x="30" y="64" font-size="14" fill="#5b6770">Each peer binds both topics as an acceptor; the peer with the lower public key opens the connections.</text>
+
+  <!-- Peer A -->
+  <rect x="40" y="110" width="270" height="360" rx="16" fill="#eef4fb" stroke="#0057B8" stroke-width="1.6"/>
+  <text x="175" y="140" font-size="17" font-weight="700" text-anchor="middle" fill="#0057B8">Peer A</text>
+  <text x="175" y="160" font-size="12" text-anchor="middle" fill="#5b6770">lower peer key → initiator</text>
+  <rect x="62" y="178" width="226" height="86" rx="9" fill="#ffffff" stroke="#9fb6d1"/>
+  <text x="175" y="200" font-size="12.5" font-weight="600" text-anchor="middle" fill="#1b2226">bindTopic("wb_live")</text>
+  <text x="175" y="218" font-size="12.5" font-weight="600" text-anchor="middle" fill="#1b2226">bindTopic("wb_state")</text>
+  <text x="175" y="238" font-size="10.5" text-anchor="middle" fill="#5b6770">acceptors retained for the</text>
+  <text x="175" y="252" font-size="10.5" text-anchor="middle" fill="#5b6770">whole session</text>
+  <rect x="62" y="278" width="226" height="86" rx="9" fill="#ffffff" stroke="#9fb6d1"/>
+  <text x="175" y="300" font-size="12.5" font-weight="600" text-anchor="middle" fill="#1b2226">connect(B, "wb_live")</text>
+  <text x="175" y="318" font-size="12.5" font-weight="600" text-anchor="middle" fill="#1b2226">connect(B, "wb_state")</text>
+  <text x="175" y="338" font-size="10.5" text-anchor="middle" fill="#5b6770">only because keyA &lt; keyB</text>
+  <text x="175" y="352" font-size="10.5" text-anchor="middle" fill="#5b6770">(dedupes bidirectional links)</text>
+  <rect x="62" y="378" width="226" height="72" rx="9" fill="#f3f6f8" stroke="#c3ccd2"/>
+  <text x="175" y="400" font-size="11" text-anchor="middle" fill="#5b6770">onReceive → copy payload →</text>
+  <text x="175" y="416" font-size="11" text-anchor="middle" fill="#5b6770">trySend to a Channel</text>
+  <text x="175" y="434" font-size="10.5" text-anchor="middle" fill="#8a969d">(never block the driver thread)</text>
+
+  <!-- Peer B -->
+  <rect x="730" y="110" width="270" height="360" rx="16" fill="#eef4fb" stroke="#0057B8" stroke-width="1.6"/>
+  <text x="865" y="140" font-size="17" font-weight="700" text-anchor="middle" fill="#0057B8">Peer B</text>
+  <text x="865" y="160" font-size="12" text-anchor="middle" fill="#5b6770">higher peer key → acceptor</text>
+  <rect x="752" y="178" width="226" height="86" rx="9" fill="#ffffff" stroke="#9fb6d1"/>
+  <text x="865" y="200" font-size="12.5" font-weight="600" text-anchor="middle" fill="#1b2226">bindTopic("wb_live")</text>
+  <text x="865" y="218" font-size="12.5" font-weight="600" text-anchor="middle" fill="#1b2226">bindTopic("wb_state")</text>
+  <text x="865" y="238" font-size="10.5" text-anchor="middle" fill="#5b6770">candidate.take() inside the</text>
+  <text x="865" y="252" font-size="10.5" text-anchor="middle" fill="#5b6770">callback, then open() off-thread</text>
+  <rect x="752" y="278" width="226" height="86" rx="9" fill="#f3f6f8" stroke="#c3ccd2"/>
+  <text x="865" y="304" font-size="11.5" text-anchor="middle" fill="#5b6770">does NOT connect to A</text>
+  <text x="865" y="324" font-size="10.5" text-anchor="middle" fill="#8a969d">keyB &gt; keyA, so B waits and</text>
+  <text x="865" y="338" font-size="10.5" text-anchor="middle" fill="#8a969d">accepts A's two streams</text>
+  <rect x="752" y="378" width="226" height="72" rx="9" fill="#f3f6f8" stroke="#c3ccd2"/>
+  <text x="865" y="400" font-size="11" text-anchor="middle" fill="#5b6770">onReceive → copy payload →</text>
+  <text x="865" y="416" font-size="11" text-anchor="middle" fill="#5b6770">trySend to a Channel</text>
+  <text x="865" y="434" font-size="10.5" text-anchor="middle" fill="#8a969d">(never block the driver thread)</text>
+
+  <!-- wb_live channel -->
+  <rect x="330" y="196" width="380" height="96" rx="12" fill="#e9f6f8" stroke="#00838F" stroke-width="1.5"/>
+  <text x="520" y="220" font-size="14" font-weight="700" text-anchor="middle" fill="#00727d">wb_live · Unreliable</text>
+  <text x="520" y="242" font-size="11.5" text-anchor="middle" fill="#1b2226">live drawing previews · delta-encoded</text>
+  <text x="520" y="260" font-size="11.5" text-anchor="middle" fill="#1b2226">≤ 30 msg/s · drop-oldest · sendAndForget</text>
+  <text x="520" y="280" font-size="10.5" text-anchor="middle" fill="#5b6770">low latency, loss-tolerant — never chunked</text>
+  <line x1="330" y1="230" x2="292" y2="230" stroke="#00838F" stroke-width="1.7" marker-end="url(#arr)"/>
+  <line x1="710" y1="230" x2="748" y2="230" stroke="#00838F" stroke-width="1.7" marker-end="url(#arr)"/>
+
+  <!-- wb_state channel -->
+  <rect x="330" y="310" width="380" height="126" rx="12" fill="#eafaf3" stroke="#2E7D32" stroke-width="1.5"/>
+  <text x="520" y="334" font-size="14" font-weight="700" text-anchor="middle" fill="#2E7D32">wb_state · Reliable</text>
+  <text x="520" y="356" font-size="11.5" text-anchor="middle" fill="#1b2226">committed ops · profiles · clear · snapshots</text>
+  <text x="520" y="374" font-size="11.5" text-anchor="middle" fill="#1b2226">ordered per peer · LZ4 compression requested</text>
+  <text x="520" y="392" font-size="11.5" text-anchor="middle" fill="#1b2226">size-checked &amp; chunked past maxSendSize()</text>
+  <text x="520" y="412" font-size="10.5" text-anchor="middle" fill="#5b6770">immutable · idempotent · replayed in Lamport order</text>
+  <line x1="330" y1="360" x2="292" y2="340" stroke="#2E7D32" stroke-width="1.7" marker-end="url(#arr)" opacity="0.9"/>
+  <line x1="710" y1="360" x2="748" y2="340" stroke="#2E7D32" stroke-width="1.7" marker-end="url(#arr)" opacity="0.9"/>
+
+  <!-- footer note -->
+  <rect x="40" y="500" width="960" height="86" rx="12" fill="#fff6e9" stroke="#E08600" stroke-width="1.2"/>
+  <text x="60" y="524" font-size="13" font-weight="700" fill="#B36A00">Why two topics?</text>
+  <text x="60" y="546" font-size="12" fill="#1b2226">Real-time strokes need speed and tolerate loss → Unreliable. Board truth must never be lost or reordered → Reliable.</text>
+  <text x="60" y="566" font-size="12" fill="#1b2226">Separating them lets a burst of 30 previews/s coexist with guaranteed, ordered delivery of the operations that define the board.</text>
+</svg>

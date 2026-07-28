@@ -1,0 +1,18 @@
+.DS_Store
+# Local Ditto credentials. Never commit this file.
+.env
+.idea/
+.agents/
+**/build/
+**/.gradle/
+**/.kotlin/
+**/local.properties
+**/captures/
+
+# Claude Code local settings
+.claude/
+
+# Internal working docs — kept local, not published to the examples repo
+CODE_REVIEW.md
+WHITEBOARD_PLAN.md
+Notes.md

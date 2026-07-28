@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package ditto.whiteboard.v1;
+
+option java_package = "com.ditto.whiteboard.protocol.proto";
+option java_multiple_files = true;
+option optimize_for = LITE_RUNTIME;
+
+message Envelope {
+  uint32 protocol_version = 1;
+  string board_id = 2;
+  string sender_peer_key = 3;
+  uint64 sender_sequence = 4;
+  uint64 lamport = 5;
+
+  oneof payload {
+    Hello hello = 10;
+    ReliableOperation operation = 11;
+    SnapshotBegin snapshot_begin = 12;
+    SnapshotChunk snapshot_chunk = 13;
+    SnapshotEnd snapshot_end = 14;
+    SnapshotAck snapshot_ack = 15;
+    ReliableChunk reliable_chunk = 16;
+  }
+}
+
+message Hello {
+  bytes profile_json = 1;
+  bool ready = 2;
+  bytes state_digest = 3;
+  map<string, uint64> high_water_marks = 4;
+}
+
+message ReliableOperation {
+  bytes operation_json = 1;
+}
+
+message SnapshotBegin {
+  string transfer_id = 1;
+  uint32 chunk_count = 2;
+  uint64 byte_count = 3;
+  bytes sha256 = 4;
+}
+
+message SnapshotChunk {
+  string transfer_id = 1;
+  uint32 index = 2;
+  bytes data = 3;
+}
+
+message SnapshotEnd {
+  string transfer_id = 1;
+}
+
+message SnapshotAck {
+  string transfer_id = 1;
+  bool accepted = 2;
+  string error = 3;
+}
+
+message ReliableChunk {
+  string transfer_id = 1;
+  uint32 chunk_count = 2;
+  uint64 byte_count = 3;
+  bytes sha256 = 4;
+  uint32 index = 5;
+  bytes data = 6;
+}
+
+message LiveEnvelope {
+  uint32 protocol_version = 1;
+  string board_id = 2;
+  string sender_peer_key = 3;
+  uint64 sender_sequence = 4;
+  LivePreview preview = 10;
+}
+
+message LivePreview {
+  uint32 tool = 1;
+  sint32 color_argb = 2;
+  repeated sint32 coordinate_deltas = 3 [packed = true];
+}

@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="760" viewBox="0 0 1040 760" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="down" markerWidth="10" markerHeight="10" refX="5" refY="8" orient="auto">
+      <path d="M1,1 L5,8 L9,1" fill="none" stroke="#5b6770" stroke-width="1.6"/>
+    </marker>
+    <marker id="up" markerWidth="10" markerHeight="10" refX="5" refY="2" orient="auto">
+      <path d="M1,9 L5,2 L9,9" fill="none" stroke="#0057B8" stroke-width="1.6"/>
+    </marker>
+  </defs>
+  <rect width="1040" height="760" fill="#ffffff"/>
+  <text x="30" y="40" font-size="24" font-weight="700" fill="#1b2226">Whiteboard — Architecture &amp; Data Flow</text>
+  <text x="30" y="64" font-size="14" fill="#5b6770">Downward = user commands · Upward (blue) = state &amp; inbound events · Side boxes are pure/stateless helpers</text>
+
+  <!-- UI LAYER -->
+  <rect x="30" y="88" width="740" height="118" rx="12" fill="#eef4fb" stroke="#0057B8" stroke-width="1.3"/>
+  <text x="46" y="110" font-size="13" font-weight="700" fill="#0057B8">UI · Jetpack Compose + Navigation 3 (ui/)</text>
+  <rect x="46" y="122" width="150" height="70" rx="8" fill="#ffffff" stroke="#9fb6d1"/>
+  <text x="121" y="150" font-size="12.5" text-anchor="middle" fill="#1b2226">MainActivity</text>
+  <text x="121" y="168" font-size="11" text-anchor="middle" fill="#5b6770">WhiteboardApp</text>
+  <text x="121" y="182" font-size="11" text-anchor="middle" fill="#5b6770">(nav host)</text>
+  <rect x="208" y="122" width="168" height="70" rx="8" fill="#ffffff" stroke="#9fb6d1"/>
+  <text x="292" y="146" font-size="12.5" text-anchor="middle" fill="#1b2226">ProfileSetupScreen</text>
+  <text x="292" y="168" font-size="12.5" text-anchor="middle" fill="#1b2226">BoardScreen</text>
+  <text x="292" y="184" font-size="10.5" text-anchor="middle" fill="#5b6770">BoardCanvas · ConnectedPeople</text>
+  <rect x="388" y="122" width="168" height="70" rx="8" fill="#ffffff" stroke="#9fb6d1"/>
+  <text x="472" y="150" font-size="12.5" text-anchor="middle" fill="#1b2226">TroubleshootingScreen</text>
+  <text x="472" y="170" font-size="10.5" text-anchor="middle" fill="#5b6770">PresenceGraph (mesh viz)</text>
+  <rect x="568" y="122" width="186" height="70" rx="8" fill="#f3f6f8" stroke="#c3ccd2" stroke-dasharray="4 3"/>
+  <text x="661" y="150" font-size="12" text-anchor="middle" fill="#5b6770">WhiteboardTheme</text>
+  <text x="661" y="170" font-size="10.5" text-anchor="middle" fill="#8a969d">Material 3 · edge-to-edge</text>
+
+  <!-- VIEWMODEL -->
+  <rect x="30" y="228" width="740" height="66" rx="12" fill="#eafaf3" stroke="#2E7D32" stroke-width="1.3"/>
+  <text x="46" y="250" font-size="13" font-weight="700" fill="#2E7D32">Presentation · WhiteboardViewModel</text>
+  <text x="46" y="276" font-size="12" fill="#1b2226">combine(boardState, previews, tool, color, diagnostics) → BoardUiState  ·  exposed as StateFlow via stateIn(WhileSubscribed)</text>
+
+  <!-- SESSION -->
+  <rect x="30" y="316" width="740" height="82" rx="12" fill="#fff6e9" stroke="#E08600" stroke-width="1.3"/>
+  <text x="46" y="338" font-size="13" font-weight="700" fill="#B36A00">Session / Coordination · BoardSession (data/)</text>
+  <text x="46" y="360" font-size="12" fill="#1b2226">Lamport OperationClock · dedup + apply via BoardReducer · live-preview cache with 2 s expiry</text>
+  <text x="46" y="380" font-size="12" fill="#1b2226">collects transport events (reliable ops · live previews · snapshot-merged · incompatible-peer)</text>
+
+  <!-- TRANSPORT INTERFACE -->
+  <rect x="30" y="420" width="740" height="118" rx="12" fill="#eef0f2" stroke="#5b6770" stroke-width="1.3"/>
+  <text x="46" y="442" font-size="13" font-weight="700" fill="#3a444b">Transport (interface) · WhiteboardTransport</text>
+  <rect x="46" y="454" width="350" height="72" rx="8" fill="#ffffff" stroke="#8aa7c9"/>
+  <text x="221" y="476" font-size="12.5" font-weight="600" text-anchor="middle" fill="#0057B8">DittoWhiteboardTransport</text>
+  <text x="221" y="496" font-size="10.5" text-anchor="middle" fill="#5b6770">acceptors · per-peer connect loops · outboxes</text>
+  <text x="221" y="512" font-size="10.5" text-anchor="middle" fill="#5b6770">presence-driven ownership · reconnect w/ backoff</text>
+  <rect x="410" y="454" width="344" height="72" rx="8" fill="#ffffff" stroke="#c3ccd2"/>
+  <text x="582" y="476" font-size="12.5" font-weight="600" text-anchor="middle" fill="#5b6770">InMemoryWhiteboardTransport</text>
+  <text x="582" y="497" font-size="10.5" text-anchor="middle" fill="#8a969d">fallback when credentials/SDK unavailable</text>
+  <text x="582" y="513" font-size="10.5" text-anchor="middle" fill="#8a969d">local-only preview, explains degraded mode</text>
+
+  <!-- DITTO SDK -->
+  <rect x="30" y="560" width="740" height="82" rx="12" fill="#e9f6f8" stroke="#00838F" stroke-width="1.3"/>
+  <text x="46" y="582" font-size="13" font-weight="700" fill="#00727d">Ditto Kotlin SDK 5.1.0 · ditto.dataStreams  (@PreviewDataStreams, NGN enabled)</text>
+  <rect x="46" y="594" width="220" height="34" rx="7" fill="#ffffff" stroke="#00838F"/>
+  <text x="156" y="616" font-size="11.5" text-anchor="middle" fill="#1b2226">topic "wb_live" — Unreliable</text>
+  <rect x="278" y="594" width="230" height="34" rx="7" fill="#ffffff" stroke="#00838F"/>
+  <text x="393" y="616" font-size="11.5" text-anchor="middle" fill="#1b2226">topic "wb_state" — Reliable</text>
+  <rect x="520" y="594" width="234" height="34" rx="7" fill="#f3f6f8" stroke="#c3ccd2"/>
+  <text x="637" y="616" font-size="11.5" text-anchor="middle" fill="#5b6770">presence graph (peer discovery)</text>
+
+  <!-- MESH -->
+  <rect x="30" y="664" width="740" height="66" rx="12" fill="#f3f6f8" stroke="#c3ccd2" stroke-width="1.2"/>
+  <text x="46" y="686" font-size="13" font-weight="700" fill="#3a444b">Nearby mesh transports (SmallPeersOnly)</text>
+  <text x="46" y="710" font-size="12" fill="#5b6770">BLE  ·  LAN / mDNS  ·  Wi-Fi Aware   →   up to 10 peers, no cloud, ephemeral</text>
+
+  <!-- SIDE: DOMAIN + PROTOCOL -->
+  <rect x="800" y="228" width="210" height="170" rx="12" fill="#f7f4fb" stroke="#7E4FB0" stroke-width="1.2"/>
+  <text x="816" y="250" font-size="13" font-weight="700" fill="#6a3ea0">Domain (pure) · domain/</text>
+  <text x="816" y="274" font-size="11.5" fill="#1b2226">BoardModels — immutable ops</text>
+  <text x="816" y="294" font-size="11.5" fill="#1b2226">BoardReducer — CRDT fold,</text>
+  <text x="816" y="309" font-size="11.5" fill="#1b2226">Lamport total order, clear</text>
+  <text x="816" y="324" font-size="11.5" fill="#1b2226">watermark, high-water vectors</text>
+  <text x="816" y="348" font-size="11.5" fill="#1b2226">BoardGeometry — simplify,</text>
+  <text x="816" y="363" font-size="11.5" fill="#1b2226">deterministic erase split</text>
+  <text x="816" y="386" font-size="10.5" fill="#8a969d">no Android / Ditto deps</text>
+
+  <rect x="800" y="420" width="210" height="222" rx="12" fill="#f7f4fb" stroke="#7E4FB0" stroke-width="1.2"/>
+  <text x="816" y="442" font-size="13" font-weight="700" fill="#6a3ea0">Protocol · protocol/</text>
+  <text x="816" y="466" font-size="11.5" fill="#1b2226">WhiteboardProtocol —</text>
+  <text x="816" y="481" font-size="11.5" fill="#1b2226">protobuf envelopes, version</text>
+  <text x="816" y="496" font-size="11.5" fill="#1b2226">gate, Hello + state vectors</text>
+  <text x="816" y="520" font-size="11.5" fill="#1b2226">SnapshotTransfer —</text>
+  <text x="816" y="535" font-size="11.5" fill="#1b2226">chunking + SHA-256 digest</text>
+  <text x="816" y="559" font-size="11.5" fill="#1b2226">delta-encoded live previews</text>
+  <text x="816" y="600" font-size="10.5" fill="#8a969d">bytes on the wire for both</text>
+  <text x="816" y="615" font-size="10.5" fill="#8a969d">Data Streams topics</text>
+
+  <!-- vertical flow arrows (down grey / up blue) -->
+  <line x1="380" y1="206" x2="380" y2="226" stroke="#5b6770" stroke-width="1.6" marker-end="url(#down)"/>
+  <line x1="420" y1="226" x2="420" y2="206" stroke="#0057B8" stroke-width="1.6" marker-end="url(#up)"/>
+  <line x1="380" y1="294" x2="380" y2="314" stroke="#5b6770" stroke-width="1.6" marker-end="url(#down)"/>
+  <line x1="420" y1="314" x2="420" y2="294" stroke="#0057B8" stroke-width="1.6" marker-end="url(#up)"/>
+  <line x1="380" y1="398" x2="380" y2="418" stroke="#5b6770" stroke-width="1.6" marker-end="url(#down)"/>
+  <line x1="420" y1="418" x2="420" y2="398" stroke="#0057B8" stroke-width="1.6" marker-end="url(#up)"/>
+  <line x1="380" y1="538" x2="380" y2="558" stroke="#5b6770" stroke-width="1.6" marker-end="url(#down)"/>
+  <line x1="420" y1="558" x2="420" y2="538" stroke="#0057B8" stroke-width="1.6" marker-end="url(#up)"/>
+  <line x1="400" y1="642" x2="400" y2="662" stroke="#00838F" stroke-width="1.6" marker-end="url(#down)"/>
+</svg>

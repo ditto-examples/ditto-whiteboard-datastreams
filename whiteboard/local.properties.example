@@ -1,0 +1,4 @@
+# Prefer DITTO_DATABASE_ID and DITTO_LICENSE in the repository-root .env file.
+# These legacy local.properties entries remain available as an untracked fallback.
+dittoWhiteboardDatabaseId=
+dittoWhiteboardOfflineLicenseToken=

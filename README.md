@@ -1,6 +1,6 @@
 # Ditto Data Streams Whiteboard
 
-An ephemeral, nearby-first collaborative whiteboard for Android. Up to ten peers share live drawing previews over an unreliable Ditto stream and converge completed objects, erasures, clears, profiles, and snapshots over a reliable stream.
+An ephemeral, nearby-first collaborative whiteboard for Android. Up to ten peers share live drawing previews over an the Ditto Data Stream  API.
 
 The Android project lives in `whiteboard/` and uses Jetpack Compose, Material 3, Navigation 3, adaptive supporting panes, protobuf-lite, DataStore, and Ditto `5.1.0-preview.10`.
 

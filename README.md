@@ -20,7 +20,7 @@ DITTO_LICENSE=
 
 Gradle reads those values into the app's generated `BuildConfig`. The root `.env` file is ignored by git; `whiteboard/local.properties` remains an untracked legacy fallback. Do not reuse credentials from another demo. Without credentials, the app intentionally runs as a local drawing preview and explains the degraded state in its banner and troubleshooting screen.
 
-The requested preview exists in Maven Central as `com.ditto:ditto-kotlin-android:5.1.0-preview.10`. The older `live.ditto:ditto` coordinate does not publish this version, so the project preserves the exact required SDK version using its actual Kotlin Android artifact.
+The app follows the official v5 install guidance and depends on the Kotlin Multiplatform root module `com.ditto:ditto-kotlin`; Gradle resolves the platform-specific Android variant from its module metadata. The version catalog keeps the SDK in the 5.x lane (`require = "[5.0.1,6.0.0)"`, preferring 5.1.0) so minor and patch updates land without an unprompted major upgrade.
 
 ## Build and test
 

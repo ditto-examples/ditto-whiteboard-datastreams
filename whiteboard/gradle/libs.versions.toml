@@ -19,7 +19,7 @@ protobuf = "4.35.1"
 protobufPlugin = "0.10.0"
 robolectric = "4.16.1"
 screenshot = "0.0.1-alpha15"
-ditto = "5.1.0-preview.10"
+ditto = { require = "[5.0.1,6.0.0)", prefer = "5.1.0" }
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
@@ -51,7 +51,7 @@ protobuf-javalite = { module = "com.google.protobuf:protobuf-javalite", version.
 protobuf-protoc = { module = "com.google.protobuf:protoc", version.ref = "protobuf" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 screenshot-validation-api = { module = "com.android.tools.screenshot:screenshot-validation-api", version.ref = "screenshot" }
-ditto = { module = "com.ditto:ditto-kotlin-android", version.ref = "ditto" }
+ditto = { module = "com.ditto:ditto-kotlin", version.ref = "ditto" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

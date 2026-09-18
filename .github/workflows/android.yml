@@ -5,6 +5,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      update_screenshots:
+        description: "Regenerate screenshot reference images on this runner and upload them as an artifact instead of validating"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -42,6 +47,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Verify app
+        if: ${{ !inputs.update_screenshots }}
         # The release bundle is an artifact that could be published, so it is built under the guard
         # that fails the build rather than baking a Ditto license into it.
         env:
@@ -54,5 +60,21 @@ jobs:
             :app:compileDebugAndroidTestKotlin \
             :app:validateDebugScreenshotTest
 
+      # Screenshot references are canonical to this Ubuntu runner: Skia/font anti-aliasing differs
+      # enough across OSes that references rendered on a developer's Mac fail validation here.
+      # Intentional UI changes are therefore re-baselined on CI via this workflow's
+      # `update_screenshots` dispatch, never regenerated locally.
+      - name: Update screenshot references
+        if: ${{ inputs.update_screenshots }}
+        run: ./gradlew :app:updateDebugScreenshotTest
+
+      - name: Upload regenerated screenshot references
+        if: ${{ inputs.update_screenshots }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshot-references
+          path: whiteboard/app/src/screenshotTestDebug/reference/
+
       - name: Verify 16 KB native LOAD alignment
+        if: ${{ !inputs.update_screenshots }}
         run: python3 ../tools/verify_elf_alignment.py app/build/outputs/bundle/release/app-release.aab

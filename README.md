@@ -23,18 +23,36 @@ Launch **Whiteboard** and create a profile. With no credentials, local-preview
 mode starts automatically and does not request nearby permissions. Drawing works
 immediately; a banner clearly indicates that nearby collaboration is off.
 
+## Configure
+
+Copy `.env.sample` to `.env` in the repository root and fill it with dedicated
+Whiteboard SmallPeersOnly credentials:
+
+```dotenv
+DITTO_DATABASE_ID=
+DITTO_LICENSE=
+```
+
+Gradle reads those values into the app's generated `BuildConfig`. The root
+`.env` file is ignored by git; `whiteboard/local.properties` remains an
+untracked legacy fallback. Do not reuse credentials from another demo. Without
+credentials, the app intentionally runs as a local drawing preview and explains
+the degraded state in its banner and troubleshooting screen.
+
+The app follows the official v5 install guidance and depends on the Kotlin
+Multiplatform root module `com.ditto:ditto-kotlin`; Gradle resolves the
+platform-specific Android variant from its module metadata. The version catalog
+keeps the SDK in the 5.x lane (`require = "[5.0.1,6.0.0)"`, preferring 5.1.0)
+so minor and patch updates land without an unprompted major upgrade.
+
 ## Connect nearby devices
 
-1. Copy `.env.sample` to `.env`.
-2. Add a dedicated Whiteboard `DITTO_DATABASE_ID` and `DITTO_LICENSE` supplied
-   by your Ditto Portal project or project administrator.
-3. Install the same build on two physical Android devices.
-4. Grant the explained nearby Wi-Fi/Bluetooth permissions on both devices.
-5. Use the same Whiteboard credentials on both devices, then draw.
+1. Install the same build on two physical Android devices.
+2. Grant the explained nearby Wi-Fi/Bluetooth permissions on both devices.
+3. Use the same Whiteboard credentials on both devices, then draw.
 
-`.env` and `whiteboard/local.properties` are ignored by Git. Do not reuse
-credentials from another demo. The app embeds the offline license in its build,
-so distribute builds only to their intended audience.
+The app embeds the offline license in its build, so distribute builds only to
+their intended audience.
 
 ## What the sample demonstrates
 

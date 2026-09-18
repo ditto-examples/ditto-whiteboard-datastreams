@@ -1,19 +1,37 @@
 package com.ditto.whiteboard.domain
 
 import kotlin.math.abs
-import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
+import java.lang.StrictMath
+import java.security.MessageDigest
+
+private const val MAX_FRAGMENTS_PER_OBJECT_ERASE = 16
 
 object BoardGeometry {
+  fun evenlySample(points: List<LogicalPoint>, maximumPoints: Int): List<LogicalPoint> {
+    require(maximumPoints >= 2)
+    if (points.size <= maximumPoints) return points
+    val last = points.lastIndex.toLong()
+    return List(maximumPoints) { index ->
+      points[(index.toLong() * last / (maximumPoints - 1)).toInt()]
+    }
+  }
+
   fun simplify(points: List<LogicalPoint>, tolerance: Double = 2.0): List<LogicalPoint> {
     if (points.size <= 2) return points.distinct()
     val keep = BooleanArray(points.size)
     keep[0] = true
     keep[points.lastIndex] = true
 
-    fun mark(start: Int, end: Int) {
-      if (end <= start + 1) return
+    // Iterative Ramer-Douglas-Peucker avoids overflowing the call stack on an adversarial or very
+    // long stroke whose farthest point repeatedly falls near one edge of the remaining segment.
+    val pending = ArrayDeque<Pair<Int, Int>>()
+    pending.addLast(0 to points.lastIndex)
+    while (pending.isNotEmpty()) {
+      val (start, end) = pending.removeLast()
+      if (end <= start + 1) continue
       var farthestIndex = -1
       var farthestDistance = tolerance
       for (index in start + 1 until end) {
@@ -25,77 +43,299 @@ object BoardGeometry {
       }
       if (farthestIndex >= 0) {
         keep[farthestIndex] = true
-        mark(start, farthestIndex)
-        mark(farthestIndex, end)
+        pending.addLast(start to farthestIndex)
+        pending.addLast(farthestIndex to end)
       }
     }
 
-    mark(0, points.lastIndex)
     return points.filterIndexed { index, _ -> keep[index] }
   }
 
-  fun erase(objects: Collection<BoardObject>, eraser: BoardOperation.Erase): List<BoardObject> =
-    objects.flatMap { boardObject ->
-      when (boardObject) {
-        is BoardObject.Freehand -> splitFreehand(boardObject, eraser.path, eraser.radius)
-        else -> if (intersects(boardObject, eraser.path, eraser.radius)) emptyList() else listOf(boardObject)
+  fun erase(objects: Collection<BoardObject>, eraser: BoardOperation.Erase): List<BoardObject> {
+    // Materialize the eraser polyline once. Rebuilding this list for every object—and, for a
+    // freehand, for every stroke edge—turned an O(objects × edges × eraser-edges) calculation into
+    // the same asymptotic work plus millions of short-lived Pair/list allocations.
+    val eraserSegments = pathSegments(eraser.path)
+    val ordered = objects.sortedWith(boardObjectOrder)
+    val result = ArrayList<BoardObject>(min(ordered.size, MAX_RENDERED_BOARD_OBJECTS))
+    ordered.forEachIndexed { objectIndex, boardObject ->
+      val survivors = when (boardObject) {
+        is BoardObject.Freehand -> splitFreehand(boardObject, eraser, eraserSegments)
+        else -> if (intersectsSegments(boardObject, eraserSegments, eraser.radius)) emptyList() else listOf(boardObject)
       }
+      // Reserve one slot for every later source object so fragment amplification can only degrade
+      // the touched stroke; it must never evict an unrelated object.
+      val laterSourceCount = ordered.lastIndex - objectIndex
+      val availableForCurrent =
+        (MAX_RENDERED_BOARD_OBJECTS - result.size - laterSourceCount).coerceAtLeast(0)
+      val retained = if (survivors.size <= availableForCurrent) {
+        survivors
+      } else {
+        survivors
+          .sortedWith(
+            compareByDescending<BoardObject> {
+              (it as? BoardObject.Freehand)?.points?.size ?: Int.MAX_VALUE
+            }.then(boardObjectOrder),
+          )
+          .take(availableForCurrent)
+          .sortedWith(boardObjectOrder)
+      }
+      result.addAll(retained)
     }
+    return result
+  }
 
   fun intersects(boardObject: BoardObject, eraserPath: List<LogicalPoint>, radius: Int): Boolean {
     if (eraserPath.isEmpty()) return false
+    return intersectsSegments(boardObject, pathSegments(eraserPath), radius)
+  }
+
+  private fun intersectsSegments(
+    boardObject: BoardObject,
+    eraserSegments: List<Pair<LogicalPoint, LogicalPoint>>,
+    radius: Int,
+  ): Boolean {
     val expandedRadius = radius + objectHalfWidth(boardObject)
     return objectSegments(boardObject).any { (start, end) ->
-      pathSegments(eraserPath).any { (eraseStart, eraseEnd) ->
-        segmentDistance(start, end, eraseStart, eraseEnd) <= expandedRadius
+      eraserSegments.any { (eraseStart, eraseEnd) ->
+        segmentBoundsOverlap(start, end, eraseStart, eraseEnd, expandedRadius) &&
+          segmentDistance(start, end, eraseStart, eraseEnd) <= expandedRadius
       }
     }
   }
 
   private fun splitFreehand(
     stroke: BoardObject.Freehand,
-    eraserPath: List<LogicalPoint>,
-    radius: Int,
+    eraser: BoardOperation.Erase,
+    eraserSegments: List<Pair<LogicalPoint, LogicalPoint>>,
   ): List<BoardObject.Freehand> {
-    if (stroke.points.size < 2 || eraserPath.isEmpty()) return listOf(stroke)
-    val cutoff = radius + stroke.width / 2.0
-    val erasedEdges = BooleanArray(stroke.points.lastIndex)
-    for (index in erasedEdges.indices) {
-      erasedEdges[index] = pathSegments(eraserPath).any { (eraseStart, eraseEnd) ->
-        segmentDistance(stroke.points[index], stroke.points[index + 1], eraseStart, eraseEnd) <= cutoff
+    if (eraserSegments.isEmpty()) return listOf(stroke)
+    val cutoff = eraser.radius + stroke.width / 2.0
+    if (stroke.points.size == 1) {
+      val erased = eraserSegments.any { (start, end) ->
+        pointToSegmentDistance(stroke.points.single(), start, end) <= cutoff
       }
+      return if (erased) emptyList() else listOf(stroke)
     }
-
-    if (erasedEdges.none { it }) return listOf(stroke)
     val fragments = mutableListOf<List<LogicalPoint>>()
     var current = mutableListOf<LogicalPoint>()
-    for (index in erasedEdges.indices) {
-      if (!erasedEdges[index]) {
-        if (current.isEmpty()) current += stroke.points[index]
-        current += stroke.points[index + 1]
-      } else if (current.size >= 2) {
-        fragments += current
+    var touched = false
+    for (index in 0 until stroke.points.lastIndex) {
+      val start = stroke.points[index]
+      val end = stroke.points[index + 1]
+      val erased = erasedIntervals(start, end, eraserSegments, cutoff)
+      if (erased.isEmpty()) {
+        appendSegment(current, start, end)
+        continue
+      }
+      touched = true
+      var cursor = 0.0
+      erased.forEach { interval ->
+        if (interval.start > cursor) {
+          appendSegment(
+            current,
+            pointAlong(start, end, cursor),
+            pointAlong(start, end, interval.start),
+          )
+        }
+        if (current.size >= 2) fragments += current
         current = mutableListOf()
-      } else {
-        current.clear()
+        cursor = max(cursor, interval.end)
+      }
+      if (cursor < 1.0) {
+        appendSegment(current, pointAlong(start, end, cursor), end)
       }
     }
     if (current.size >= 2) fragments += current
+    if (!touched) return listOf(stroke)
 
-    return fragments.mapIndexed { index, points ->
+    // A long stroke can alternate erased/surviving edges many times. Retain the
+    // longest bounded subset so one operation cannot amplify the rendered object graph without
+    // bound; original fragment indices keep identities deterministic on every peer.
+    return fragments
+      .mapIndexed { index, points -> index to points }
+      .sortedWith(compareByDescending<Pair<Int, List<LogicalPoint>>> { it.second.size }.thenBy { it.first })
+      .take(MAX_FRAGMENTS_PER_OBJECT_ERASE)
+      .sortedBy { it.first }
+      .map { (index, points) ->
       stroke.copy(
-        id = stroke.id.copy(fragment = childFragment(stroke.id.fragment, index)),
+        id = childObjectId(stroke.id, eraser.id, index),
         points = points,
       )
+      }
+  }
+  private data class Interval(val start: Double, val end: Double)
+
+  /** Returns the exact parameter intervals of [start]→[end] inside any eraser-segment capsule. */
+  private fun erasedIntervals(
+    start: LogicalPoint,
+    end: LogicalPoint,
+    eraserSegments: List<Pair<LogicalPoint, LogicalPoint>>,
+    radius: Double,
+  ): List<Interval> {
+    val intervals = eraserSegments
+      .asSequence()
+      .filter { (eraseStart, eraseEnd) ->
+        segmentBoundsOverlap(start, end, eraseStart, eraseEnd, radius)
+      }
+      .flatMap { (eraseStart, eraseEnd) ->
+        capsuleIntervals(start, end, eraseStart, eraseEnd, radius).asSequence()
+      }
+      .sortedBy(Interval::start)
+      .toList()
+    if (intervals.isEmpty()) return emptyList()
+    val merged = mutableListOf<Interval>()
+    intervals.forEach { interval ->
+      val previous = merged.lastOrNull()
+      if (previous == null || interval.start > previous.end) {
+        merged += interval
+      } else {
+        merged[merged.lastIndex] = Interval(previous.start, max(previous.end, interval.end))
+      }
     }
+    return merged
   }
 
+  private fun capsuleIntervals(
+    segmentStart: LogicalPoint,
+    segmentEnd: LogicalPoint,
+    capsuleStart: LogicalPoint,
+    capsuleEnd: LogicalPoint,
+    radius: Double,
+  ): List<Interval> {
+    val intervals = mutableListOf<Interval>()
+    circleInterval(segmentStart, segmentEnd, capsuleStart, radius)?.let(intervals::add)
+    circleInterval(segmentStart, segmentEnd, capsuleEnd, radius)?.let(intervals::add)
+
+    val vx = (capsuleEnd.x - capsuleStart.x).toDouble()
+    val vy = (capsuleEnd.y - capsuleStart.y).toDouble()
+    val lengthSquared = vx * vx + vy * vy
+    if (lengthSquared > 0.0) {
+      val dx = (segmentEnd.x - segmentStart.x).toDouble()
+      val dy = (segmentEnd.y - segmentStart.y).toDouble()
+      val relativeX = (segmentStart.x - capsuleStart.x).toDouble()
+      val relativeY = (segmentStart.y - capsuleStart.y).toDouble()
+      val projection = linearInterval(
+        relativeX * vx + relativeY * vy,
+        dx * vx + dy * vy,
+        0.0,
+        lengthSquared,
+      )
+      val strip = linearInterval(
+        relativeX * vy - relativeY * vx,
+        dx * vy - dy * vx,
+        -radius * StrictMath.sqrt(lengthSquared),
+        radius * StrictMath.sqrt(lengthSquared),
+      )
+      intersect(projection, strip)?.let(intervals::add)
+    }
+    return intervals
+      .mapNotNull { intersect(it, Interval(0.0, 1.0)) }
+      .filter { it.end - it.start > 1e-9 }
+  }
+
+  private fun circleInterval(
+    segmentStart: LogicalPoint,
+    segmentEnd: LogicalPoint,
+    center: LogicalPoint,
+    radius: Double,
+  ): Interval? {
+    val dx = (segmentEnd.x - segmentStart.x).toDouble()
+    val dy = (segmentEnd.y - segmentStart.y).toDouble()
+    val fx = (segmentStart.x - center.x).toDouble()
+    val fy = (segmentStart.y - center.y).toDouble()
+    val a = dx * dx + dy * dy
+    if (a == 0.0) return if (fx * fx + fy * fy <= radius * radius) Interval(0.0, 1.0) else null
+    val b = 2.0 * (fx * dx + fy * dy)
+    val c = fx * fx + fy * fy - radius * radius
+    val discriminant = b * b - 4.0 * a * c
+    if (discriminant < 0.0) return null
+    val root = StrictMath.sqrt(discriminant)
+    return intersect(
+      Interval((-b - root) / (2.0 * a), (-b + root) / (2.0 * a)),
+      Interval(0.0, 1.0),
+    )
+  }
+
+  private fun linearInterval(
+    origin: Double,
+    slope: Double,
+    lower: Double,
+    upper: Double,
+  ): Interval? {
+    if (slope == 0.0) return if (origin in lower..upper) Interval(0.0, 1.0) else null
+    val first = (lower - origin) / slope
+    val second = (upper - origin) / slope
+    return Interval(min(first, second), max(first, second))
+  }
+
+  private fun intersect(first: Interval?, second: Interval?): Interval? {
+    if (first == null || second == null) return null
+    val start = max(first.start, second.start)
+    val end = min(first.end, second.end)
+    return if (start <= end) Interval(start, end) else null
+  }
+
+  private fun appendSegment(
+    target: MutableList<LogicalPoint>,
+    start: LogicalPoint,
+    end: LogicalPoint,
+  ) {
+    if (target.lastOrNull() != start) target += start
+    if (target.lastOrNull() != end) target += end
+  }
+
+  private fun pointAlong(start: LogicalPoint, end: LogicalPoint, parameter: Double): LogicalPoint =
+    LogicalPoint(
+      x = (start.x + (end.x - start.x) * parameter).roundToInt().coerceIn(0, BOARD_WIDTH),
+      y = (start.y + (end.y - start.y) * parameter).roundToInt().coerceIn(0, BOARD_HEIGHT),
+    )
+
   /**
-   * Derives a stable, deterministic fragment id for the [index]th piece a stroke splits into when
-   * erased. Mixing the parent id with a prime keeps ids from colliding across repeated splits, so
-   * every peer that replays the same erase produces identical fragment ids and converges.
+   * Hashes the complete parent identity plus this erasure step into a fixed-size fragment id.
+   * Lineage therefore remains collision-resistant without making repeated erasures copy an
+   * ever-growing list or turn map hashing into O(erasure depth).
    */
-  private fun childFragment(parent: Int, index: Int): Int = parent * 1009 + index + 1
+  internal fun childObjectId(
+    parent: ObjectId,
+    eraserOperationId: OperationId,
+    index: Int,
+  ): ObjectId {
+    require(index >= 0)
+    val digest = MessageDigest.getInstance("SHA-256")
+    digest.updateLengthPrefixed(parent.origin.senderPeerKey)
+    digest.updateLong(parent.origin.senderSequence)
+    digest.updateLengthPrefixed(parent.fragmentDigest)
+    digest.updateLengthPrefixed(eraserOperationId.senderPeerKey)
+    digest.updateLong(eraserOperationId.senderSequence)
+    digest.updateLong(index.toLong())
+    return parent.copy(fragmentDigest = digest.digest().toHex())
+  }
+
+  private val boardObjectOrder = compareBy<BoardObject>(
+    { it.stamp },
+    { it.id.origin.senderPeerKey },
+    { it.id.origin.senderSequence },
+    { it.id.fragmentDigest },
+  )
+
+  private fun MessageDigest.updateLengthPrefixed(value: String) {
+    val bytes = value.encodeToByteArray()
+    updateLong(bytes.size.toLong())
+    update(bytes)
+  }
+
+  private fun MessageDigest.updateLong(value: Long) {
+    for (shift in 56 downTo 0 step 8) update((value ushr shift).toByte())
+  }
+
+  private fun ByteArray.toHex(): String = buildString(size * 2) {
+    this@toHex.forEach { byte ->
+      val value = byte.toInt() and 0xff
+      append("0123456789abcdef"[value ushr 4])
+      append("0123456789abcdef"[value and 0x0f])
+    }
+  }
 
   private fun objectHalfWidth(boardObject: BoardObject): Double = when (boardObject) {
     is BoardObject.Freehand -> boardObject.width / 2.0
@@ -140,8 +380,8 @@ object BoardGeometry {
     val points = (0..32).map { index ->
       val angle = Math.PI * 2.0 * index / 32.0
       LogicalPoint(
-        x = (centerX + radiusX * kotlin.math.cos(angle)).toInt(),
-        y = (centerY + radiusY * kotlin.math.sin(angle)).toInt(),
+        x = (centerX + radiusX * StrictMath.cos(angle)).toInt(),
+        y = (centerY + radiusY * StrictMath.sin(angle)).toInt(),
       )
     }
     return pathSegments(points)
@@ -161,9 +401,17 @@ object BoardGeometry {
   ): Double {
     val dx = (end.x - start.x).toDouble()
     val dy = (end.y - start.y).toDouble()
-    if (dx == 0.0 && dy == 0.0) return hypot((point.x - start.x).toDouble(), (point.y - start.y).toDouble())
+    if (dx == 0.0 && dy == 0.0) {
+      return StrictMath.hypot(
+        (point.x - start.x).toDouble(),
+        (point.y - start.y).toDouble(),
+      )
+    }
     val t = (((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy)).coerceIn(0.0, 1.0)
-    return hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy))
+    return StrictMath.hypot(
+      point.x - (start.x + t * dx),
+      point.y - (start.y + t * dy),
+    )
   }
 
   private fun segmentDistance(
@@ -180,6 +428,18 @@ object BoardGeometry {
       pointToSegmentDistance(b2, a1, a2),
     )
   }
+
+  private fun segmentBoundsOverlap(
+    firstStart: LogicalPoint,
+    firstEnd: LogicalPoint,
+    secondStart: LogicalPoint,
+    secondEnd: LogicalPoint,
+    padding: Double,
+  ): Boolean =
+    max(firstStart.x, firstEnd.x) + padding >= min(secondStart.x, secondEnd.x) &&
+      max(secondStart.x, secondEnd.x) + padding >= min(firstStart.x, firstEnd.x) &&
+      max(firstStart.y, firstEnd.y) + padding >= min(secondStart.y, secondEnd.y) &&
+      max(secondStart.y, secondEnd.y) + padding >= min(firstStart.y, firstEnd.y)
 
   private fun segmentsIntersect(a: LogicalPoint, b: LogicalPoint, c: LogicalPoint, d: LogicalPoint): Boolean {
     fun orientation(p: LogicalPoint, q: LogicalPoint, r: LogicalPoint): Long =

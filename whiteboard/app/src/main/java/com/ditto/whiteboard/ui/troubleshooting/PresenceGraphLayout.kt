@@ -11,6 +11,7 @@ object PresenceGraphLayout {
     root: String,
     nodes: Set<String>,
     connections: Set<PresenceConnection>,
+    levelSpacing: Float = 150f,
   ): Map<String, GraphPoint> {
     if (nodes.isEmpty()) return emptyMap()
     val allNodes = nodes + root + connections.flatMap { listOf(it.peer1, it.peer2) }
@@ -37,7 +38,7 @@ object PresenceGraphLayout {
       put(root, GraphPoint(0f, 0f))
       levels.toSortedMap().forEach { (level, peers) ->
         val sorted = peers.sorted()
-        val radius = 150f * level
+        val radius = levelSpacing * level
         sorted.forEachIndexed { index, peer ->
           val angle = -Math.PI / 2 + Math.PI * 2 * index / sorted.size
           put(peer, GraphPoint((cos(angle) * radius).toFloat(), (sin(angle) * radius).toFloat()))

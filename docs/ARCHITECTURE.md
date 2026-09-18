@@ -1,6 +1,6 @@
 # Architecture & Data Streams walkthrough
 
-This page explains how the Whiteboard app is put together and, specifically, **how it uses the Ditto Data Streams API**. If you're evaluating Data Streams, the two things worth understanding are (1) *why the app opens two separate streams* and (2) *how a peer that joins late catches up*. Both are diagrammed below.
+This page explains how the Whiteboard app is put together and, specifically, **how it uses the Ditto Data Streams API**. If Streams terminology is new, read [Getting started](GETTING_STARTED.md) first. The two main ideas here are (1) *why the app opens two separate streams* and (2) *how a peer that joins late—or missed an application frame—catches up*.
 
 > API reference: [`DittoDataStreams.md`](../DittoDataStreams.md) · usage guide: [`SKILL.md`](../SKILL.md)
 
@@ -21,7 +21,7 @@ The app is a one-directional stack. **User actions flow down**; **state and inbo
 | **Ditto SDK** | `ditto.dataStreams` | Two bound topics — `wb_live` (Unreliable) and `wb_state` (Reliable) — plus the presence graph used to discover peer keys. NGN is enabled in `WhiteboardApplication.onCreate()` before Ditto is constructed. |
 | **Mesh** | — | `SmallPeersOnly` nearby transports (BLE, LAN/mDNS, Wi-Fi Aware). Up to ten peers, no cloud, ephemeral — nothing is written to the Ditto store. |
 
-**Domain** (`domain/`) holds the immutable operation model and `BoardReducer`, a CRDT-style fold that produces board state from the operation log in Lamport total order, honouring a "clear" watermark and per-peer high-water vectors. **Protocol** (`protocol/`) turns operations into protobuf envelopes on the wire, gates incompatible protocol versions, and implements chunked, SHA-256-verified snapshot transfer.
+**Domain** (`domain/`) holds the immutable operation model and `BoardReducer`, a CRDT-style fold that produces board state from the operation log in Lamport total order, honouring a "clear" watermark. **Protocol** (`protocol/`) turns operations into protobuf envelopes on the wire, gates incompatible protocol versions, computes a canonical state digest, and implements chunked, SHA-256-verified snapshot transfer.
 
 ---
 
@@ -29,14 +29,14 @@ The app is a one-directional stack. **User actions flow down**; **state and inbo
 
 ![Two Data Streams topics](diagrams/data-streams-topology.png)
 
-Every peer **binds both topics as an acceptor** and retains those acceptors for the whole session. To avoid opening a stream in both directions, the app uses a simple tie-break: **the peer with the lower public key calls `connect()`**; the higher-key peer only accepts. On the receiving side the candidate is claimed with `take()` inside the bind callback and opened on a background dispatcher, and every `onReceive` callback does nothing but copy the payload and `trySend` it onto a channel — the SDK's driver thread is never blocked.
+Every peer **binds both topics as an acceptor** and retains those acceptors for the whole session. To avoid opening a stream in both directions, the app uses a simple tie-break: **the peer with the lower public key calls `connect()`**; the higher-key peer only accepts. On the receiving side the candidate is claimed with `take()` inside the bind callback and opened on a background dispatcher. Every `onReceive` callback retains the payload returned by the SDK and only `trySend`s it onto a channel — the SDK's driver thread is never blocked.
 
 | Topic | Reliability | Carries | Delivery characteristics |
 |---|---|---|---|
 | **`wb_live`** | Unreliable | Live drawing previews (delta-encoded) | ≤ 30 msg/s, drop-oldest, `sendAndForget`, never chunked — optimised for latency, tolerant of loss |
-| **`wb_state`** | Reliable | Committed operations, profiles, clears, snapshots | Ordered per peer, LZ4 compression requested, size-checked and chunked past `maxSendSize()`; operations are immutable, idempotent, and replayed in Lamport order |
+| **`wb_state`** | Reliable | Committed operations, profiles, clears, snapshots | Ordered per peer, LZ4 compression requested, size-checked and chunked past `maxSendSize()`; operations are immutable, idempotent, replayed in Lamport order, and repaired by digest-aware snapshots |
 
-**Why split them?** Real-time strokes need to be fast and can tolerate a dropped frame, so they go over an Unreliable stream. The operations that *define the board* must never be lost or reordered, so they go over a Reliable stream. Running them as separate topics lets a burst of previews coexist with guaranteed, ordered delivery of the board's source of truth.
+**Why split them?** Real-time strokes need to be fast and can tolerate a dropped frame, so they go over an Unreliable stream. The operations that *define the board* need ordered reliable transport, but the application still handles queue saturation, reconnects, and process failure: a missing operation is repaired by the next digest exchange. Running separate topics prevents a preview burst from sharing an application queue with the board's source of truth.
 
 ---
 
@@ -46,15 +46,42 @@ Every peer **binds both topics as an acceptor** and retains those acceptors for 
 
 When a peer joins a board that already has content, it can't replay history it never saw — so an existing peer sends it a **snapshot** over the Reliable stream:
 
-1. Once both streams are open, the late joiner sends a **`Hello`** carrying its per-peer high-water marks, its profile, and a `ready` flag.
-2. The existing peer runs `compareStateVectors`. If it has operations the joiner is missing (`LocalDominates`, or `Concurrent` with local ops), it begins a snapshot.
-3. **`SnapshotBegin`** announces the transfer id, chunk count, byte count, and SHA-256 digest; the joiner starts hydrating and arms a 10-second timeout.
+1. As soon as `wb_state` opens, each side sends a **`Hello`** carrying its profile and canonical state digest.
+2. If the digests differ and the sender has state, it offers a merge-only snapshot. Both sides may offer; operation ids and deterministic conflict resolution make duplicate exchange safe.
+3. **`SnapshotBegin`** announces the transfer id, chunk count, byte count, and SHA-256 digest; the joiner starts hydrating and arms a 30-second inactivity timeout plus a five-minute hard lifetime.
 4. **`SnapshotChunk × N`** stream the compressed board state; the joiner reassembles and reports progress.
 5. While hydrating, the joiner **buffers** any new reliable operations from that peer and **suppresses** its live previews, so nothing is applied out of order.
 6. **`SnapshotEnd`** closes the transfer. The joiner verifies the SHA-256 digest and byte count, then does a **merge-only** apply of the snapshot together with the buffered operations.
 7. The joiner replies with **`SnapshotAck(accepted = true)`**.
+8. If the received snapshot was only a subset of the joiner's merged history,
+   the joiner sends the merged union back. This reciprocal repair means a
+   one-way or lost initial `Hello` cannot leave the smaller peer repeatedly
+   offering the same subset until its readiness deadline expires.
 
-If `SnapshotEnd` doesn't arrive within 10 seconds, or the digest doesn't match, the joiner drops the hydration, marks it timed-out/rejected, and re-sends `Hello` to try again. Because operations are idempotent, re-running the exchange is safe.
+If no valid chunk arrives for 30 seconds, the five-minute lifetime expires, the
+digest does not match, or either peer sends a negative acknowledgment, the app
+preserves independently received operations and retries with bounded backoff.
+Rapid digest-changing Hellos are coalesced rather than discarded. Because
+operations are idempotent, re-running the exchange is safe.
+
+Peer-controlled frames are bounded before allocation. Direct operations must
+match their connected stream peer, but a snapshot authenticates only its relay,
+not every historical operation author; devices sharing credentials are fully
+trusted. A transfer is limited to 16 MiB and 4,096 chunks, only one snapshot is
+hydrated globally, hydration buffering is capped at 64 operations/2 MiB, author
+count is capped at 64, and a process-lifetime board stops at 10,000 operations
+instead of growing without bound. The current limits are 10,000 total
+operations, 128 erase operations, and 512 simultaneously visible objects; a
+stroke carries at most 128 points and an eraser at most 32. Terminal history
+limits require every participating process to exit before a fresh ephemeral
+board can begin.
+
+Nearby collaboration is foreground-only. Actual backgrounding through
+`MainActivity.onStop` stops Ditto sync, closes active streams, and cancels
+transfer/reconnect work while retaining the in-memory board. `onStart` restarts
+sync; the normal digest exchange repairs anything missed in the background.
+Configuration recreation (rotation, fold, or locale change) retains the
+process-level transport so it does not churn radios or interrupt reconciliation.
 
 ---
 

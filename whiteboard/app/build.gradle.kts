@@ -7,7 +7,6 @@ plugins {
   alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.protobuf)
   alias(libs.plugins.screenshot)
-  jacoco
 }
 
 val localProperties = Properties().apply {
@@ -66,7 +65,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -88,6 +88,11 @@ android {
     }
 
     packaging {
+      jniLibs {
+        // The pinned Ditto preview bundles a 4 KiB-aligned C++ runtime. Prefer the app's NDK 27
+        // runtime override, whose 64-bit variants support Android's 16 KiB page-size devices.
+        pickFirsts += "**/libc++_shared.so"
+      }
       resources {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
         excludes += "/META-INF/INDEX.LIST"
@@ -115,6 +120,7 @@ dependencies {
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.datastore.preferences)
   implementation(libs.kotlinx.coroutines.android)
+  implementation(libs.kotlinx.collections.immutable)
   implementation(libs.kotlinx.serialization.json)
 
   // Compose
@@ -139,6 +145,7 @@ dependencies {
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.robolectric)
+  testImplementation(libs.androidx.compose.ui.test.junit4)
 
   // Instrumented tests: jUnit rules and runners
   androidTestImplementation(libs.androidx.test.core)

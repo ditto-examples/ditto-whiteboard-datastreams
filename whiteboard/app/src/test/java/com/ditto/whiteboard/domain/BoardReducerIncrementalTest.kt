@@ -94,4 +94,36 @@ class BoardReducerIncrementalTest {
     assertEquals(rebuilt(ordered), state)
     assertEquals(0, state.objects.size) // both commits precede the clear watermark
   }
+
+  @Test fun manyReverseOrderedConcurrentCommitsMatchRebuild() {
+    val operations = (1L..400L).map { sequence ->
+      commit(
+        peer = if (sequence % 2L == 0L) "a" else "b",
+        seq = sequence,
+        lamport = sequence,
+      )
+    }
+
+    assertEquals(rebuilt(operations), applyAll(operations.reversed()))
+  }
+
+  @Test fun outOfOrderCommitReplaysOnlyLaterErasers() {
+    val earlyErase = erase(
+      "eraser",
+      1,
+      2,
+      listOf(LogicalPoint(0, 900), LogicalPoint(1_000, 900)),
+    )
+    val concurrentStroke = commit("artist", 1, 3)
+    val lateErase = erase(
+      "eraser",
+      2,
+      5,
+      listOf(LogicalPoint(0, 35), LogicalPoint(100, 35)),
+    )
+    val newest = profile("profile", 1, 6, "Riley", 0xFF334455.toInt())
+    val arrivalOrder = listOf(earlyErase, lateErase, newest, concurrentStroke)
+
+    assertEquals(rebuilt(arrivalOrder), applyAll(arrivalOrder))
+  }
 }

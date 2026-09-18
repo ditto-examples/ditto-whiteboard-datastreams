@@ -29,7 +29,7 @@
   <text x="175" y="338" font-size="10.5" text-anchor="middle" fill="#5b6770">only because keyA &lt; keyB</text>
   <text x="175" y="352" font-size="10.5" text-anchor="middle" fill="#5b6770">(dedupes bidirectional links)</text>
   <rect x="62" y="378" width="226" height="72" rx="9" fill="#f3f6f8" stroke="#c3ccd2"/>
-  <text x="175" y="400" font-size="11" text-anchor="middle" fill="#5b6770">onReceive → copy payload →</text>
+  <text x="175" y="400" font-size="11" text-anchor="middle" fill="#5b6770">onReceive → retain owned payload →</text>
   <text x="175" y="416" font-size="11" text-anchor="middle" fill="#5b6770">trySend to a Channel</text>
   <text x="175" y="434" font-size="10.5" text-anchor="middle" fill="#8a969d">(never block the driver thread)</text>
 
@@ -47,7 +47,7 @@
   <text x="865" y="324" font-size="10.5" text-anchor="middle" fill="#8a969d">keyB &gt; keyA, so B waits and</text>
   <text x="865" y="338" font-size="10.5" text-anchor="middle" fill="#8a969d">accepts A's two streams</text>
   <rect x="752" y="378" width="226" height="72" rx="9" fill="#f3f6f8" stroke="#c3ccd2"/>
-  <text x="865" y="400" font-size="11" text-anchor="middle" fill="#5b6770">onReceive → copy payload →</text>
+  <text x="865" y="400" font-size="11" text-anchor="middle" fill="#5b6770">onReceive → retain owned payload →</text>
   <text x="865" y="416" font-size="11" text-anchor="middle" fill="#5b6770">trySend to a Channel</text>
   <text x="865" y="434" font-size="10.5" text-anchor="middle" fill="#8a969d">(never block the driver thread)</text>
 
@@ -73,6 +73,6 @@
   <!-- footer note -->
   <rect x="40" y="500" width="960" height="86" rx="12" fill="#fff6e9" stroke="#E08600" stroke-width="1.2"/>
   <text x="60" y="524" font-size="13" font-weight="700" fill="#B36A00">Why two topics?</text>
-  <text x="60" y="546" font-size="12" fill="#1b2226">Real-time strokes need speed and tolerate loss → Unreliable. Board truth must never be lost or reordered → Reliable.</text>
-  <text x="60" y="566" font-size="12" fill="#1b2226">Separating them lets a burst of 30 previews/s coexist with guaranteed, ordered delivery of the operations that define the board.</text>
+  <text x="60" y="546" font-size="12" fill="#1b2226">Real-time strokes tolerate loss → Unreliable. Board truth uses ordered Reliable transport plus digest/snapshot repair.</text>
+  <text x="60" y="566" font-size="12" fill="#1b2226">Separating them lets a burst of 30 previews/s coexist with ordered delivery plus digest/snapshot repair for board operations.</text>
 </svg>

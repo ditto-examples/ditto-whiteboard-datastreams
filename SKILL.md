@@ -5,6 +5,10 @@ description: Write, review, and troubleshoot Kotlin or Android code using Ditto 
 
 # Ditto Data Streams for Kotlin and Android
 
+> Advanced integration guide. If you have not used Ditto Data Streams before,
+> begin with [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md), then return
+> here for API ownership, backpressure, cancellation, and teardown patterns.
+
 ## Use the 5.1.0 API surface
 
 Target the Kotlin API verified in the Ditto 5.1.0 source line. Treat the API as preview and opt in with `@OptIn(PreviewDataStreams::class)`.
@@ -22,7 +26,7 @@ If the project uses another preview or release artifact, inspect that artifact's
 5. Bind and retain an acceptor on the receiving peer.
 6. Discover or obtain the remote peer key, then connect from a coroutine.
 7. Open candidates within their callback lifetime or transfer ownership with `take()`.
-8. Copy inbound bytes and return quickly from receive callbacks.
+8. Retain the owned payload bytes and return quickly from receive callbacks.
 9. Retain and close streams explicitly; enforce `maxSendSize()`.
 10. Preserve coroutine cancellation and use bounded reconnect backoff.
 11. Compile against the actual dependency and test with at least two peers.
@@ -106,13 +110,15 @@ fun bindReceiver(
 ) { candidate ->
     val peer = candidate.peerKeyString()
     val stream = candidate.open { inbound ->
-        enqueue(inbound.payload())
+        // The wrapper is callback-scoped; payload() returns an owned ByteArray.
+        val bytes = inbound.payload()
+        enqueue(bytes)
     }
     streams.put(peer, stream)?.close()
 }
 ```
 
-Require `enqueue` to be non-blocking, such as `Channel.trySend` or `MutableSharedFlow.tryEmit`. The receive callback runs directly on a connection driver thread. Call `payload()` once, enqueue the copied `ByteArray`, and return. Do not retain `DittoInbound` or perform blocking I/O, heavy decoding, database work, or UI work in the callback.
+Require `enqueue` to be non-blocking, such as `Channel.trySend` or `MutableSharedFlow.tryEmit`. The receive callback runs directly on a connection driver thread. Call `payload()` once, enqueue its owned `ByteArray`, and return. Do not retain `DittoInbound`, make another redundant copy, or perform blocking I/O, heavy decoding, database work, or UI work in the callback.
 
 Closing the acceptor prevents new connections but does not close streams already opened from it. Close those streams separately.
 

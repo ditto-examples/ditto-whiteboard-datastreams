@@ -73,7 +73,7 @@
   <text x="816" y="274" font-size="11.5" fill="#1b2226">BoardModels — immutable ops</text>
   <text x="816" y="294" font-size="11.5" fill="#1b2226">BoardReducer — CRDT fold,</text>
   <text x="816" y="309" font-size="11.5" fill="#1b2226">Lamport total order, clear</text>
-  <text x="816" y="324" font-size="11.5" fill="#1b2226">watermark, high-water vectors</text>
+  <text x="816" y="324" font-size="11.5" fill="#1b2226">watermark, persistent maps</text>
   <text x="816" y="348" font-size="11.5" fill="#1b2226">BoardGeometry — simplify,</text>
   <text x="816" y="363" font-size="11.5" fill="#1b2226">deterministic erase split</text>
   <text x="816" y="386" font-size="10.5" fill="#8a969d">no Android / Ditto deps</text>
@@ -82,7 +82,7 @@
   <text x="816" y="442" font-size="13" font-weight="700" fill="#6a3ea0">Protocol · protocol/</text>
   <text x="816" y="466" font-size="11.5" fill="#1b2226">WhiteboardProtocol —</text>
   <text x="816" y="481" font-size="11.5" fill="#1b2226">protobuf envelopes, version</text>
-  <text x="816" y="496" font-size="11.5" fill="#1b2226">gate, Hello + state vectors</text>
+  <text x="816" y="496" font-size="11.5" fill="#1b2226">gate, Hello + state digest</text>
   <text x="816" y="520" font-size="11.5" fill="#1b2226">SnapshotTransfer —</text>
   <text x="816" y="535" font-size="11.5" fill="#1b2226">chunking + SHA-256 digest</text>
   <text x="816" y="559" font-size="11.5" fill="#1b2226">delta-encoded live previews</text>

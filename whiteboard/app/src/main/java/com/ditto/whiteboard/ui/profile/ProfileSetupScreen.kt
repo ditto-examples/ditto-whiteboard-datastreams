@@ -17,33 +17,39 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import com.ditto.whiteboard.data.ProfileSettings
+import com.ditto.whiteboard.R
 import com.ditto.whiteboard.ui.WHITEBOARD_COLORS
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,21 +59,39 @@ fun ProfileSetupScreen(
   editing: Boolean,
   onSave: (String, Int) -> Unit,
   modifier: Modifier = Modifier,
+  errorMessage: String? = null,
+  onBack: () -> Unit = {},
 ) {
-  var name by remember { mutableStateOf(existing?.displayName.orEmpty()) }
-  var color by remember { mutableIntStateOf(existing?.colorArgb ?: WHITEBOARD_COLORS[1]) }
-  var attemptedSave by remember { mutableStateOf(false) }
-  LaunchedEffect(existing) {
-    if (existing != null) {
-      name = existing.displayName
-      color = existing.colorArgb
-    }
+  var name by rememberSaveable(existing?.displayName) { mutableStateOf(existing?.displayName.orEmpty()) }
+  var color by rememberSaveable(existing?.colorArgb) {
+    mutableIntStateOf(existing?.colorArgb ?: WHITEBOARD_COLORS[1])
   }
-  val valid = name.trim().length in 1..24
+  var attemptedSave by rememberSaveable { mutableStateOf(false) }
+  val valid = name.trim().length in 1..24 && name.none(Char::isISOControl)
 
   Scaffold(
     modifier = modifier.fillMaxSize(),
-    topBar = { TopAppBar(title = { Text(if (editing) "Edit profile" else "Welcome to Whiteboard") }) },
+    topBar = {
+      TopAppBar(
+        title = {
+          Text(
+            stringResource(
+              if (editing) R.string.profile_edit_title else R.string.profile_welcome_title,
+            ),
+          )
+        },
+        navigationIcon = {
+          if (editing) {
+            IconButton(onClick = onBack) {
+              Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.action_back),
+              )
+            }
+          }
+        },
+      )
+    },
   ) { padding ->
     // Scrollable + IME-aware so the action button stays reachable on short/landscape screens with
     // the keyboard open, instead of being pushed off a fixed, centered column.
@@ -81,28 +105,35 @@ fun ProfileSetupScreen(
         .padding(horizontal = 24.dp, vertical = 16.dp),
       horizontalAlignment = Alignment.Start,
     ) {
-      Text(
-        "Choose how nearby collaborators will see you. The name and color stay on this device.",
-        style = MaterialTheme.typography.bodyLarge,
-      )
+      Text(stringResource(R.string.profile_privacy_explanation), style = MaterialTheme.typography.bodyLarge)
+      errorMessage?.let { message ->
+        Spacer(Modifier.height(12.dp))
+        Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+      }
       Spacer(Modifier.height(24.dp))
       OutlinedTextField(
         value = name,
-        onValueChange = { if (it.length <= 24) name = it },
+        onValueChange = { value ->
+          name = value.filterNot(Char::isISOControl).take(24)
+        },
         modifier = Modifier.fillMaxWidth(),
-        label = { Text("Display name") },
-        supportingText = { Text("1–24 characters") },
+        label = { Text(stringResource(R.string.display_name)) },
+        supportingText = { Text(stringResource(R.string.display_name_support)) },
         isError = attemptedSave && !valid,
         singleLine = true,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { if (valid) onSave(name.trim(), color) }),
       )
       Spacer(Modifier.height(20.dp))
-      Text("Default drawing color", style = MaterialTheme.typography.titleMedium)
+      Text(stringResource(R.string.default_drawing_color), style = MaterialTheme.typography.titleMedium)
       Spacer(Modifier.height(12.dp))
       FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         WHITEBOARD_COLORS.forEachIndexed { index, option ->
           val selected = color == option
+          val description = stringResource(
+            if (selected) R.string.color_number_selected else R.string.color_number,
+            index + 1,
+          )
           Spacer(
             Modifier
               .size(48.dp)
@@ -112,7 +143,8 @@ fun ProfileSetupScreen(
               .clickable { color = option }
               .semantics {
                 role = Role.RadioButton
-                contentDescription = "Color ${index + 1}${if (selected) ", selected" else ""}"
+                this.selected = selected
+                contentDescription = description
               },
           )
         }
@@ -122,7 +154,11 @@ fun ProfileSetupScreen(
         onClick = { attemptedSave = true; if (valid) onSave(name.trim(), color) },
         enabled = valid,
         modifier = Modifier.fillMaxWidth(),
-      ) { Text(if (editing) "Save profile" else "Join the board") }
+      ) {
+        Text(
+          stringResource(if (editing) R.string.action_save_profile else R.string.action_join_board),
+        )
+      }
     }
   }
 }

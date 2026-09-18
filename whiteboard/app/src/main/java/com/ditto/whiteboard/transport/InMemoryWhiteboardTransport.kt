@@ -11,22 +11,34 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class InMemoryWhiteboardTransport(
   override val localPeerKey: String = "local-${UUID.randomUUID().toString().take(8)}",
-  private val reason: String = "Add Whiteboard Ditto credentials to connect to nearby peers.",
+  private val reason: String,
 ) : WhiteboardTransport {
   private val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 64)
   override val events = mutableEvents.asSharedFlow()
   private val mutableDiagnostics = MutableStateFlow(
-    TransportDiagnostics(localPeerKey = localPeerKey, mode = "Local preview", connectivityMessage = reason),
+    TransportDiagnostics(
+      localPeerKey = localPeerKey,
+      mode = TransportMode.LocalPreview,
+      connectivityMessage = reason,
+    ),
   )
   override val diagnostics = mutableDiagnostics.asStateFlow()
+  private var foreground = true
+  private val knownLog = BoundedOperationLog()
 
   override suspend fun start(profile: UserProfile) {
-    mutableDiagnostics.value = mutableDiagnostics.value.copy(running = true)
+    mutableDiagnostics.value = mutableDiagnostics.value.copy(running = foreground)
   }
 
-  override suspend fun sendReliable(operation: BoardOperation) = Unit
+  override suspend fun sendReliable(operation: BoardOperation): Boolean =
+    knownLog.accept(operation) !is KnownOperationResult.Rejected
 
   override fun sendLive(preview: LivePreview) = Unit
+
+  override fun setForeground(isForeground: Boolean) {
+    foreground = isForeground
+    mutableDiagnostics.value = mutableDiagnostics.value.copy(running = isForeground)
+  }
 
   override fun close() {
     mutableDiagnostics.value = mutableDiagnostics.value.copy(running = false)

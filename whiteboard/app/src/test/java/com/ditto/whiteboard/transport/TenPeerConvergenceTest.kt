@@ -1,6 +1,7 @@
 package com.ditto.whiteboard.transport
 
 import com.ditto.whiteboard.data.BoardSession
+import com.ditto.whiteboard.data.TEST_BOARD_SESSION_MESSAGES
 import com.ditto.whiteboard.domain.BOARD_WIDTH
 import com.ditto.whiteboard.domain.BoardObject
 import com.ditto.whiteboard.domain.DrawingTool
@@ -10,6 +11,7 @@ import com.ditto.whiteboard.domain.ObjectId
 import com.ditto.whiteboard.domain.OperationId
 import com.ditto.whiteboard.domain.OperationStamp
 import com.ditto.whiteboard.domain.UserProfile
+import com.ditto.whiteboard.domain.WHITEBOARD_PALETTE
 import com.ditto.whiteboard.domain.BoardOperation
 import kotlin.random.Random
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -29,8 +31,12 @@ class TenPeerConvergenceTest {
   fun tenPeersConvergeAfterReorderingAndDuplicateReliableDelivery() = runTest {
     val network = FakeNetwork()
     val transports = (0 until 10).map { FakeTransport("peer-${it.toString().padStart(2, '0')}", network) }
-    val sessions = transports.map { BoardSession(it, backgroundScope) }
-    sessions.forEachIndexed { index, session -> session.start("Artist $index", 0xFF000000.toInt() + index) }
+    val sessions = transports.map {
+      BoardSession(it, backgroundScope, TEST_BOARD_SESSION_MESSAGES)
+    }
+    sessions.forEachIndexed { index, session ->
+      session.start("Artist $index", WHITEBOARD_PALETTE[index % WHITEBOARD_PALETTE.size])
+    }
     runCurrent()
 
     repeat(120) { index ->
@@ -38,7 +44,7 @@ class TenPeerConvergenceTest {
       val x = (index * 37) % 1_900
       session.commit(
         tool = if (index % 3 == 0) DrawingTool.Pen else DrawingTool.Line,
-        colorArgb = 0xFF0057B8.toInt() + index,
+        colorArgb = WHITEBOARD_PALETTE[index % WHITEBOARD_PALETTE.size],
         points = listOf(LogicalPoint(x, 20), LogicalPoint((x + 100).coerceAtMost(BOARD_WIDTH), 500)),
       )
     }
@@ -70,8 +76,8 @@ class TenPeerConvergenceTest {
   fun lateJoinerDrawsAboveSnapshotClearWatermark() = runTest {
     val network = FakeNetwork()
     val transport = FakeTransport("peer-late", network)
-    val session = BoardSession(transport, backgroundScope)
-    session.start("Late Joiner", 0xFF112233.toInt())
+    val session = BoardSession(transport, backgroundScope, TEST_BOARD_SESSION_MESSAGES)
+    session.start("Late Joiner", WHITEBOARD_PALETTE[1])
     runCurrent()
 
     // A snapshot from an established peer: an early stroke, a Clear at lamport 100, then a stroke
@@ -84,13 +90,13 @@ class TenPeerConvergenceTest {
       BoardOperation.Commit(
         OperationId(remote, 1),
         preClearStamp,
-        BoardObject.Line(ObjectId(OperationId(remote, 1)), preClearStamp, 0xFF00FF00.toInt(), start = LogicalPoint(0, 0), end = LogicalPoint(10, 10)),
+        BoardObject.Line(ObjectId(OperationId(remote, 1)), preClearStamp, WHITEBOARD_PALETTE[2], start = LogicalPoint(0, 0), end = LogicalPoint(10, 10)),
       ),
       BoardOperation.Clear(OperationId(remote, 2), clearStamp),
       BoardOperation.Commit(
         OperationId(remote, 3),
         postClearStamp,
-        BoardObject.Line(ObjectId(OperationId(remote, 3)), postClearStamp, 0xFF0000FF.toInt(), start = LogicalPoint(5, 5), end = LogicalPoint(20, 20)),
+        BoardObject.Line(ObjectId(OperationId(remote, 3)), postClearStamp, WHITEBOARD_PALETTE[1], start = LogicalPoint(5, 5), end = LogicalPoint(20, 20)),
       ),
     )
     transport.deliver(TransportEvent.SnapshotMerged(history))
@@ -100,7 +106,7 @@ class TenPeerConvergenceTest {
     val objectsAfterSnapshot = session.boardState.value.objects.size
     assertEquals(1, objectsAfterSnapshot)
 
-    session.commit(DrawingTool.Pen, 0xFFFF0000.toInt(), listOf(LogicalPoint(100, 100), LogicalPoint(200, 200)))
+    session.commit(DrawingTool.Pen, WHITEBOARD_PALETTE[3], listOf(LogicalPoint(100, 100), LogicalPoint(200, 200)))
     runCurrent()
 
     val state = session.boardState.value
@@ -143,7 +149,7 @@ private class FakeTransport(
 ) : WhiteboardTransport {
   private val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 10_000)
   override val events = mutableEvents.asSharedFlow()
-  private val mutableDiagnostics = MutableStateFlow(TransportDiagnostics(localPeerKey = localPeerKey, mode = "Ten-peer test"))
+  private val mutableDiagnostics = MutableStateFlow(TransportDiagnostics(localPeerKey = localPeerKey))
   override val diagnostics = mutableDiagnostics.asStateFlow()
 
   init { network.attach(this) }
@@ -152,7 +158,10 @@ private class FakeTransport(
     mutableDiagnostics.value = mutableDiagnostics.value.copy(running = true)
   }
 
-  override suspend fun sendReliable(operation: BoardOperation) = network.enqueue(localPeerKey, operation)
+  override suspend fun sendReliable(operation: BoardOperation): Boolean {
+    network.enqueue(localPeerKey, operation)
+    return true
+  }
   override fun sendLive(preview: LivePreview) = Unit
   fun deliver(event: TransportEvent) { check(mutableEvents.tryEmit(event)) }
   override fun close() = Unit

@@ -9,6 +9,16 @@ import org.junit.Test
 
 /** Unit tests for the camera math extracted out of [BoardCanvas]. */
 class BoardViewportTest {
+  @Test
+  fun firstTallFrameInitializesDirectlyToFillWithoutLetterboxGutters() {
+    val viewport = BoardViewport().resized(400, 1_000, initializeToFill = true)
+    val renderedWidth = viewport.boardWidth * viewport.fitScale() * viewport.zoom
+    val renderedHeight = viewport.boardHeight * viewport.fitScale() * viewport.zoom
+
+    assertTrue(renderedWidth >= viewport.canvasWidth)
+    assertTrue(renderedHeight >= viewport.canvasHeight)
+  }
+
   // A canvas exactly the size of the board: fit scale is 1, so screen == board coordinates.
   private val exact = BoardViewport(canvasWidth = BOARD_WIDTH, canvasHeight = BOARD_HEIGHT)
 
@@ -25,6 +35,14 @@ class BoardViewportTest {
     assertEquals(LogicalPoint(0, 0), exact.logicalPoint(-500f, -500f))
     val corner = exact.logicalPoint(99999f, 99999f)
     assertEquals(LogicalPoint(BOARD_WIDTH, BOARD_HEIGHT), corner)
+  }
+
+  @Test
+  fun letterboxedGuttersAreNotDrawingSurface() {
+    val wide = BoardViewport(canvasWidth = 4_000, canvasHeight = 1_000)
+    assertTrue(wide.originX() > 0f)
+    assertTrue(!wide.containsBoardPoint(0f, 500f))
+    assertTrue(wide.containsBoardPoint(wide.originX() + 1f, 500f))
   }
 
   @Test fun zoomIsClampedToBounds() {

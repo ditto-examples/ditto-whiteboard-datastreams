@@ -1,5 +1,9 @@
 # Module `DittoDataStreams` — Ditto Kotlin SDK
 
+> Exact advanced API reference for the pinned preview SDK. New to Streams?
+> Start with [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) for a glossary
+> and a working two-device tutorial.
+
 **Package:** `com.ditto.kotlin`  
 **API target:** Ditto Kotlin SDK 5.1.0  
 **Status:** Preview

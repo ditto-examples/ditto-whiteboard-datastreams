@@ -29,6 +29,16 @@ data class BoardViewport(
   val boardWidth: Int = BOARD_WIDTH,
   val boardHeight: Int = BOARD_HEIGHT,
 ) {
+  /** Applies a measured canvas size, optionally choosing Fill atomically for the first frame. */
+  fun resized(width: Int, height: Int, initializeToFill: Boolean): BoardViewport {
+    val measured = copy(canvasWidth = width, canvasHeight = height)
+    return if (initializeToFill && width > 0 && height > 0) {
+      measured.copy(zoom = measured.fillZoom(), panX = 0f, panY = 0f).withConstrainedPan()
+    } else {
+      measured.withConstrainedPan()
+    }
+  }
+
   /** Scale at which the whole board just fits inside the canvas (zoom == 1). */
   fun fitScale(): Float =
     min(canvasWidth / boardWidth.toFloat(), canvasHeight / boardHeight.toFloat())
@@ -92,6 +102,14 @@ data class BoardViewport(
       newZoom,
     )
     return copy(zoom = newZoom, panX = px, panY = py)
+  }
+
+  /** Converts a canvas-pixel position to a board coordinate, clamped to the board bounds. */
+  fun containsBoardPoint(screenX: Float, screenY: Float): Boolean {
+    val scale = fitScale() * zoom
+    if (scale <= 0f) return false
+    return screenX in originX()..(originX() + boardWidth * scale) &&
+      screenY in originY()..(originY() + boardHeight * scale)
   }
 
   /** Converts a canvas-pixel position to a board coordinate, clamped to the board bounds. */

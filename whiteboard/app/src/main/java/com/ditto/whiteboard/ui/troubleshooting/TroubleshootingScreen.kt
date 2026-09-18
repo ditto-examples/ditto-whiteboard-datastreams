@@ -209,6 +209,7 @@ private fun PeerDetails(peer: PeerDiagnostics, modifier: Modifier = Modifier) {
         stringResource(
           when (peer.snapshotStatus) {
             SnapshotStatus.Idle -> R.string.snapshot_idle
+            SnapshotStatus.Queued -> R.string.snapshot_queued
             SnapshotStatus.Receiving -> R.string.snapshot_receiving
             SnapshotStatus.Merged -> R.string.snapshot_merged
             SnapshotStatus.Rejected -> R.string.snapshot_rejected

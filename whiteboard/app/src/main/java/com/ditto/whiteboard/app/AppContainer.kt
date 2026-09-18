@@ -81,11 +81,13 @@ class AppContainer(context: Context) : AutoCloseable {
         editOutsideSafetyLimits = appContext.getString(R.string.board_edit_outside_safety_limits),
         terminalResourceLimit = appContext.getString(R.string.board_terminal_resource_limit),
         peerLogicalTimeLimit = appContext.getString(R.string.board_peer_logical_time_limit),
-        visibleObjectLimit = appContext.getString(
-          R.string.board_visible_object_limit,
+        visibleObjectLimit = appContext.resources.getQuantityString(
+          R.plurals.board_visible_object_limit,
+          com.ditto.whiteboard.domain.MAX_RENDERED_BOARD_OBJECTS,
           com.ditto.whiteboard.domain.MAX_RENDERED_BOARD_OBJECTS,
         ),
         clockReservationFailed = appContext.getString(R.string.board_clock_reservation_failed),
+        remoteUpdateFailed = appContext.getString(R.string.board_remote_update_failed),
       ),
       reserveOperationClock = profileRepository::reserveOperationClock,
       reserveLamportAfter = profileRepository::reserveLamportAfter,
@@ -96,6 +98,15 @@ class AppContainer(context: Context) : AutoCloseable {
     if (credentialsPresent) DittoSyncPermissions(appContext).requiredPermissions() else emptyList()
   }
 
+  /**
+   * Records the latest permission decision and forwards it to a live session.
+   *
+   * Deliberately forwards even an unchanged decision. `MainActivity.onResume` calling this on every
+   * foreground is the app's only path back from a failed `Ditto.refreshPermissions()` or a throwing
+   * `sync.start()`: both latch `localOnly`, after which `start()` is a no-op and `setForeground` is
+   * inert (the lifecycle coordinator ignores an unchanged foreground request). De-duplicating here
+   * to save a redundant refresh per resume traded that recovery for nothing.
+   */
   fun resolvePermissions(allGranted: Boolean) {
     permissionDecision = allGranted
     if (boardSessionDelegate.isInitialized()) boardSession.resolvePermissions(allGranted)

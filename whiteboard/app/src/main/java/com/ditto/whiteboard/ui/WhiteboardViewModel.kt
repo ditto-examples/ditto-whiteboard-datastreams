@@ -34,6 +34,7 @@ data class BoardUiState(
   val colorArgb: Int = WHITEBOARD_COLORS.first(),
   val diagnostics: TransportDiagnostics = TransportDiagnostics(editingReady = false),
   val errorMessage: String? = null,
+  val startFailed: Boolean = false,
 )
 
 val WHITEBOARD_COLORS: List<Int> = WHITEBOARD_PALETTE
@@ -54,6 +55,10 @@ class WhiteboardViewModel(
   private val selectedColor = MutableStateFlow(WHITEBOARD_COLORS.first())
   private val actionError = MutableStateFlow<String?>(null)
   private val sessionState = MutableStateFlow<BoardSession?>(null)
+  // Latched only when the initial session start fails, so the app can offer an explicit retry
+  // affordance instead of an empty board whose only hint was an ellipsized pill message.
+  private val startFailed = MutableStateFlow(false)
+  private var lastStartInput: Pair<String, Int>? = null
   private val sessionMutex = Mutex()
   private var ownedSession: BoardSession? = null
   // The profile's default color seeds the toolbar only on the first session start; later profile
@@ -62,8 +67,8 @@ class WhiteboardViewModel(
 
   val uiState: StateFlow<BoardUiState> = sessionState.flatMapLatest { session ->
     if (session == null) {
-      combine(selectedTool, selectedColor, actionError) { tool, color, error ->
-        BoardUiState(tool = tool, colorArgb = color, errorMessage = error)
+      combine(selectedTool, selectedColor, actionError, startFailed) { tool, color, error, failed ->
+        BoardUiState(tool = tool, colorArgb = color, errorMessage = error, startFailed = failed)
       }
     } else {
       val boardUiState = combine(
@@ -93,6 +98,7 @@ class WhiteboardViewModel(
       selectedColor.value = normalizedColor
       colorSeeded = true
     }
+    lastStartInput = displayName to normalizedColor
     viewModelScope.launch {
       val activeSession = session()
       runSuspendCatchingPreservingCancellation {
@@ -101,11 +107,25 @@ class WhiteboardViewModel(
         .onSuccess {
           sessionState.value = activeSession
           actionError.value = null
+          startFailed.value = false
         }
         .onFailure {
           actionError.value = messages.sessionStartFailed
+          startFailed.value = true
         }
     }
+  }
+
+  /**
+   * Retries the initial session start. The failed attempt left the session half-started on
+   * purpose — the transport latched `started` before the failing reconcile — so re-entering
+   * `start` is effective, which a plain re-composition is not (the [startSession] effect keys
+   * do not change on their own).
+   */
+  fun retrySessionStart() {
+    val input = lastStartInput ?: return
+    startFailed.value = false
+    startSession(input.first, input.second)
   }
 
   fun saveProfile(displayName: String, colorArgb: Int, onSaved: () -> Unit) {

@@ -60,14 +60,54 @@ When a peer joins a board that already has content, it can't replay history it n
 
 If no valid chunk arrives for 30 seconds, the five-minute lifetime expires, the
 digest does not match, or either peer sends a negative acknowledgment, the app
-preserves independently received operations and retries with bounded backoff.
-Rapid digest-changing Hellos are coalesced rather than discarded. Because
-operations are idempotent, re-running the exchange is safe.
+preserves independently received operations and retries with bounded backoff
+(1s, 2s, 4s, then reconnect). Rapid digest-changing Hellos are coalesced rather
+than discarded. Because operations are idempotent, re-running the exchange is
+safe.
+
+Only one snapshot hydrates globally, so contention for that slot is treated as
+**backpressure on both sides**, not as a failure:
+
+- The receiver answers the offer with `SnapshotAck(accepted = false, busy = true)`
+  and then waits for the slot, re-checking every 250 ms. When it frees, it sends a
+  fresh `Hello`, which often finds the digests already equal.
+- The sender reads `busy` and stands down: it marks the peer `Queued` and does
+  **not** spend its error budget or tear down the stream. A single long-delay
+  re-offer is armed purely in case that `Hello` is lost.
+
+The `busy` flag is why `PROTOCOL_VERSION` is 5. Without it the sender cannot tell
+backpressure from failure, so it exhausts its three-strike ladder in about seven
+seconds and reconnects — while the receiver is still patiently waiting — which is
+exactly the churn a full-mesh late join produces.
+
+The waiter's patience is bounded **per holder, not in total**. With ten peers the
+slot is legitimately handed between up to nine transfers in sequence, so any fixed
+total deadline would expire on a healthy mesh; the budget therefore restarts
+whenever the slot changes hands (peer key plus transfer id, so a retransmit counts
+as progress). The wait ends only if one holder overstays a full transfer lifetime
+plus finalization — a bound the holder's own hard lifetime cap and the separate
+finalization deadline (parsing, session handshake, and merge after the last chunk)
+already guarantee — and that peer then reconnects with a **fresh** error budget,
+because waiting was never a failure.
+
+Long-running snapshot control work — rejecting a superseded transfer, replaying
+the operations buffered behind it, enqueuing an acknowledgment — runs on bounded
+per-peer lanes, never on the shared reliable-ingress worker. That worker decodes
+for *every* peer, so blocking it there would back up inbound traffic mesh-wide
+and cascade into stream teardowns for peers that were perfectly healthy.
 
 Peer-controlled frames are bounded before allocation. Direct operations must
-match their connected stream peer, but a snapshot authenticates only its relay,
-not every historical operation author; devices sharing credentials are fully
-trusted. A transfer is limited to 16 MiB and 4,096 chunks, only one snapshot is
+match their connected stream peer, but **a snapshot authenticates only its
+relay, not the author of each historical operation it carries** — relaying a
+third party's operations is what late-join catch-up *is*, so origin cannot be
+checked there. A peer can therefore attribute strokes, a clear, or a profile
+change to any other peer key, and can pre-seed another peer's predictable future
+sequence numbers to censor that peer's real operations under canonical conflict
+resolution. Devices sharing credentials are fully trusted; this board is not an
+authenticated log, and closing the gap would require per-operation signatures
+and a protocol version bump.
+
+A transfer is limited to 16 MiB and 4,096 chunks, only one snapshot is
 hydrated globally, hydration buffering is capped at 64 operations/2 MiB, author
 count is capped at 64, and a process-lifetime board stops at 10,000 operations
 instead of growing without bound. The current limits are 10,000 total

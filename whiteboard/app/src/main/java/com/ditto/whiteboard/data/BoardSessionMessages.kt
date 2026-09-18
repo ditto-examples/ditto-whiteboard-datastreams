@@ -17,4 +17,5 @@ data class BoardSessionMessages(
   val peerLogicalTimeLimit: String,
   val visibleObjectLimit: String,
   val clockReservationFailed: String,
+  val remoteUpdateFailed: String,
 )

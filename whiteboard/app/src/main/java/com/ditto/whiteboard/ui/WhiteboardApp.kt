@@ -86,6 +86,14 @@ internal fun WhiteboardApp(
     }
   }
 
+  // A failed initial start leaves a sessionless, non-editable board behind; the pill banner is
+  // the only signal and it truncates. Show a dedicated recovery screen instead, with a working
+  // retry (a plain re-composition does not re-fire the start effect).
+  if (boardState.startFailed) {
+    SessionStartError(onRetry = viewModel::retrySessionStart)
+    return
+  }
+
   val initialRoute: NavKey = BoardRoute
   val backStack = rememberNavBackStack(initialRoute)
   val windowAdaptiveInfo = currentWindowAdaptiveInfoV2()
@@ -169,6 +177,21 @@ private fun ProfileLoadError(onRetry: () -> Unit) {
       Text(stringResource(R.string.profile_load_failed_title))
       Text(stringResource(R.string.profile_load_failed_explanation))
       Button(onClick = onRetry) { Text(stringResource(R.string.action_retry_profile)) }
+    }
+  }
+}
+
+@Composable
+private fun SessionStartError(onRetry: () -> Unit) {
+  Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    androidx.compose.foundation.layout.Column(
+      modifier = Modifier.padding(24.dp),
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+      Text(stringResource(R.string.session_start_failed_title))
+      Text(stringResource(R.string.session_start_failed_explanation))
+      Button(onClick = onRetry) { Text(stringResource(R.string.action_retry)) }
     }
   }
 }

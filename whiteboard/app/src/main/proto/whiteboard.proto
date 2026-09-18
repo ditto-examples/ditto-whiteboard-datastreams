@@ -56,6 +56,11 @@ message SnapshotAck {
   string transfer_id = 1;
   bool accepted = 2;
   string error = 3;
+  // Set with accepted=false when the receiver refused only because its single hydration slot was
+  // occupied. Without this the sender cannot tell backpressure from failure, so it burns its error
+  // retry budget and tears down the stream while the receiver is patiently waiting for the slot —
+  // the exact reconnect churn a full-mesh late join produces.
+  bool busy = 4;
 }
 
 message ReliableChunk {

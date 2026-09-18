@@ -40,6 +40,24 @@ fun credential(environmentName: String, localPropertyName: String): String {
 fun buildConfigString(value: String): String =
     "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
+// Credentials are compiled into BuildConfig as plain string constants, and R8 does not obscure
+// them. That is fine for a locally built demo, but an artifact built from a contributor's .env and
+// then published would ship their Ditto license. CI sets this variable for the release path so a
+// build that would bake in credentials fails loudly instead of producing a leaky bundle.
+val forbidBakedCredentials =
+    providers.environmentVariable("WHITEBOARD_FORBID_BAKED_CREDENTIALS").orNull == "1"
+
+fun guardedCredential(environmentName: String, localPropertyName: String): String {
+    val value = credential(environmentName, localPropertyName)
+    if (forbidBakedCredentials && value.isNotBlank()) {
+        throw GradleException(
+            "$environmentName is set, but WHITEBOARD_FORBID_BAKED_CREDENTIALS=1 forbids embedding " +
+                "Ditto credentials in a distributable artifact. Unset it, or clear .env/local.properties.",
+        )
+    }
+    return value
+}
+
 android {
     namespace = "com.ditto.whiteboard"
     compileSdk = 37
@@ -54,12 +72,12 @@ android {
         buildConfigField(
             "String",
             "DITTO_DATABASE_ID",
-            buildConfigString(credential("DITTO_DATABASE_ID", "dittoWhiteboardDatabaseId")),
+            buildConfigString(guardedCredential("DITTO_DATABASE_ID", "dittoWhiteboardDatabaseId")),
         )
         buildConfigField(
             "String",
             "DITTO_OFFLINE_LICENSE_TOKEN",
-            buildConfigString(credential("DITTO_LICENSE", "dittoWhiteboardOfflineLicenseToken")),
+            buildConfigString(guardedCredential("DITTO_LICENSE", "dittoWhiteboardOfflineLicenseToken")),
         )
     }
 
@@ -87,6 +105,17 @@ android {
       unitTests.isIncludeAndroidResources = true
     }
 
+    lint {
+      // A warning is a defect we have not triaged yet, so the build refuses to produce one.
+      warningsAsErrors = true
+      abortOnError = true
+      // The only exception: "a newer version of X is available" fires on upstream's release
+      // schedule, not on anything in this repo. Left enabled it would break CI spontaneously,
+      // days after a green build, for a change nobody made. Dependency currency is reviewed
+      // deliberately (see docs/RELEASING.md), not enforced by a check that rots on its own.
+      disable += setOf("GradleDependency", "NewerVersionAvailable", "AndroidGradlePluginVersion")
+    }
+
     packaging {
       jniLibs {
         // The pinned Ditto preview bundles a 4 KiB-aligned C++ runtime. Prefer the app's NDK 27
@@ -103,6 +132,10 @@ android {
 
 kotlin {
     jvmToolchain(17)
+    compilerOptions {
+      // Same policy for the Kotlin compiler: no warnings reach a reviewer unexamined.
+      allWarningsAsErrors = true
+    }
 }
 
 dependencies {

@@ -11,4 +11,5 @@ val TEST_BOARD_SESSION_MESSAGES = BoardSessionMessages(
   peerLogicalTimeLimit = "Peer logical-time limit",
   visibleObjectLimit = "Visible-object limit",
   clockReservationFailed = "Clock reservation failed",
+  remoteUpdateFailed = "Remote update failed",
 )

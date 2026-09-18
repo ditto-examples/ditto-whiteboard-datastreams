@@ -22,8 +22,12 @@
     <string name="board_edit_outside_safety_limits">That edit is outside the board’s safety limits.</string>
     <string name="board_terminal_resource_limit">This ephemeral board reached a terminal resource limit. Every collaborator must close and reopen Whiteboard to start a new board.</string>
     <string name="board_peer_logical_time_limit">A peer sent an operation beyond this board’s logical-time limit.</string>
-    <string name="board_visible_object_limit">This board reached its %1$d visible-object safety limit. Clear the board to continue, or have every collaborator close and reopen Whiteboard.</string>
+    <plurals name="board_visible_object_limit">
+        <item quantity="one">This board reached its %1$d visible-object safety limit. Clear the board to continue, or have every collaborator close and reopen Whiteboard.</item>
+        <item quantity="other">This board reached its %1$d visible-object safety limit. Clear the board to continue, or have every collaborator close and reopen Whiteboard.</item>
+    </plurals>
     <string name="board_clock_reservation_failed">Could not reserve logical clock state; the incoming edit was not applied.</string>
+    <string name="board_remote_update_failed">An update from a nearby peer could not be applied. Collaboration continues; the board repairs itself on the next sync.</string>
 
     <string name="board_title">Ditto Whiteboard</string>
     <string name="connected_people_description">Connected people, %1$d</string>
@@ -91,6 +95,8 @@
     <string name="action_save_profile">Save profile</string>
     <string name="action_join_board">Join the board</string>
     <string name="whiteboard_start_failed">Whiteboard could not start. Close and reopen the app to retry.</string>
+    <string name="session_start_failed_title">Whiteboard could not start</string>
+    <string name="session_start_failed_explanation">The collaboration session failed to start. Your profile is safe on this device. Retry now; if it keeps failing, close and reopen the app.</string>
     <string name="profile_session_update_failed">Profile was saved, but the session could not update it.</string>
     <string name="profile_save_failed">Profile could not be saved. Check the name and try again.</string>
 
@@ -112,6 +118,7 @@
     <string name="status_offline">Offline</string>
     <string name="status_snapshot">Snapshot</string>
     <string name="status_snapshot_value">%1$s · %2$d%%</string>
+    <string name="snapshot_queued">Queued — the peer is busy receiving another snapshot</string>
     <string name="snapshot_idle">Idle</string>
     <string name="snapshot_receiving">Receiving</string>
     <string name="snapshot_merged">Merged</string>

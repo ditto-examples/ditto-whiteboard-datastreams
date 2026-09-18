@@ -61,6 +61,8 @@ data class PeerDiagnostics(
 
 enum class SnapshotStatus {
   Idle,
+  /** Offer refused because the remote peer's single hydration slot is busy; waiting to re-offer. */
+  Queued,
   Receiving,
   Merged,
   Rejected,

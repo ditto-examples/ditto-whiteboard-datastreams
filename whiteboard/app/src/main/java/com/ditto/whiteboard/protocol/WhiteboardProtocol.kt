@@ -23,8 +23,14 @@ import java.security.MessageDigest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-/** Wire-format version. Peers on a different version are rejected rather than misread. */
-const val PROTOCOL_VERSION: Int = 4
+/**
+ * Wire-format version. Peers on a different version are rejected rather than misread.
+ *
+ * 5 adds `SnapshotAck.busy`, letting a receiver say "my hydration slot is occupied" instead of
+ * "your snapshot failed". A v4 peer reads a busy refusal as a plain rejection and falls back to its
+ * error retry ladder, so the versions are deliberately not interoperable.
+ */
+const val PROTOCOL_VERSION: Int = 5
 
 /** Data Streams topic for lossy, low-latency live drawing previews (bound as Unreliable). */
 const val LIVE_STREAM_NAME: String = "wb_live"
@@ -288,6 +294,25 @@ object WhiteboardProtocol {
     }.array()
   }
 
+  /**
+   * Parses a merge-only snapshot document.
+   *
+   * **Trust boundary — snapshot contents are not origin-authenticated.** Direct frames are bound to
+   * their sender: [decodeEnvelope], [decodeOperation] and [decodeProfile] all reject a payload whose
+   * author is not the connected peer. A snapshot cannot use that check, because relaying a third
+   * party's operations is the entire point of late-join catch-up. Each operation is therefore
+   * validated for *shape* ([requireValidOperation]) but not for *origin*, which means a peer can:
+   *
+   * - attribute strokes, an [BoardOperation.Clear], or a [BoardOperation.ProfileUpdate] to any
+   *   other peer key;
+   * - pre-seed another peer's future `senderSequence` values (they come from predictable persisted
+   *   blocks) with content that sorts low under [com.ditto.whiteboard.domain.canonicalOperation],
+   *   permanently censoring that peer's real operations at those sequences.
+   *
+   * Closing this requires per-operation signatures over a peer-key-bound identity and a protocol
+   * version bump; the board is an ephemeral, same-room demo surface, so it is a documented
+   * limitation rather than a mitigated one. Do not model this board as an authenticated log.
+   */
   fun snapshotOperations(bytes: ByteArray): List<BoardOperation> {
     require(bytes.size.toLong() <= MAX_TRANSFER_BYTES) { "Snapshot exceeds protocol byte limit" }
     require(bytes.size >= SNAPSHOT_HEADER_BYTES) { "Snapshot header is truncated" }

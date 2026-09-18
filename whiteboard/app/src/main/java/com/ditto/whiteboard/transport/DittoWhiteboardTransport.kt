@@ -51,7 +51,6 @@ import com.ditto.whiteboard.protocol.proto.SnapshotEnd
 import com.google.protobuf.ByteString
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.min
@@ -84,14 +83,23 @@ import kotlinx.coroutines.withTimeoutOrNull
 private const val RELIABLE_OUTBOX_CAPACITY = 64
 private const val RELIABLE_INBOUND_CAPACITY = 64
 private const val OPERATION_APPLICATION_CAPACITY_PER_PEER = 32
+private const val SNAPSHOT_CONTROL_CAPACITY_PER_PEER = 8
 private const val MAX_BUFFERED_HYDRATION_OPERATIONS = 64
 private const val MAX_BUFFERED_HYDRATION_BYTES = 2 * 1024 * 1024
 private const val MAX_CHUNK_ASSEMBLIES_PER_PEER = 4
 private const val RELIABLE_TRANSFER_TIMEOUT_MILLIS = 10_000L
 private const val MAX_RELIABLE_TRANSFER_LIFETIME_MILLIS = 60_000L
-private const val TRANSFER_INACTIVITY_TIMEOUT_MILLIS = 30_000L
-private const val MAX_SNAPSHOT_TRANSFER_LIFETIME_MILLIS = 5 * 60_000L
-private const val MAX_SNAPSHOT_RETRIES = 3
+internal const val TRANSFER_INACTIVITY_TIMEOUT_MILLIS = 30_000L
+internal const val MAX_SNAPSHOT_TRANSFER_LIFETIME_MILLIS = 5 * 60_000L
+
+/**
+ * Upper bound on snapshot finalization once the last chunk has arrived: parsing, the session's
+ * prepare/apply handshake (two inactivity-bounded awaits), and the merge. The transfer-phase
+ * timeout is cancelled when the final chunk lands, so without its own deadline a stalled session
+ * could hold the single hydration slot indefinitely. The hydration slot-wait budget in
+ * SnapshotRetryPolicy.kt must outlast a transfer's lifetime cap plus this bound.
+ */
+internal const val SNAPSHOT_FINISH_TIMEOUT_MILLIS = 3 * TRANSFER_INACTIVITY_TIMEOUT_MILLIS
 private const val HELLO_MIN_INTERVAL_NANOS = 250_000_000L
 private const val INITIAL_SYNC_TIMEOUT_MILLIS = 30_000L
 private const val MAX_DIAGNOSTIC_LENGTH = 256
@@ -221,6 +229,23 @@ class DittoWhiteboardTransport(
       recoverStream(peer, STATE_STREAM_NAME, "Reliable operation application failed")
     }
   }
+  // Snapshot rejections replay buffered operations through the session's prepare/commit/apply
+  // handshake and enqueue an acknowledgement onto a bounded outbox. Both can block for tens of
+  // seconds, so they must never run on the single reliable-ingress worker: one peer stalling there
+  // backs up `reliableInbound` for *every* peer and cascades into a mesh-wide stream teardown.
+  // Ordered per peer and bounded, exactly like the operation lanes.
+  private val snapshotControlDispatcher = PerPeerOperationDispatcher<suspend () -> Unit>(
+    scope = scope,
+    capacityPerPeer = SNAPSHOT_CONTROL_CAPACITY_PER_PEER,
+  ) { peer, work ->
+    try {
+      work()
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      recordError(peer, error)
+    }
+  }
   private val hydrations = ConcurrentHashMap<String, SnapshotHydration>()
   private val hydrationLock = Any()
   // At most one outbound snapshot transfer per peer may be in flight, so two overlapping hellos
@@ -231,11 +256,21 @@ class DittoWhiteboardTransport(
   private val chunkAssemblies = ConcurrentHashMap<Pair<String, String>, ChunkAssembly>()
   private val recoveryJobs = ConcurrentHashMap<StreamKey, Job>()
   private val snapshotRetryJobs = ConcurrentHashMap<String, Job>()
-  private val snapshotRetryAttempts = ConcurrentHashMap<String, AtomicInteger>()
+  // Deliberately separate from snapshotRetryJobs. Sharing one per-peer slot made each scheduler a
+  // silent no-op for the other: a multi-minute slot wait swallowed every genuine snapshot error
+  // retry for that peer, and an in-flight error retry prevented the slot wait from ever installing.
+  private val hydrationSlotWaitJobs = ConcurrentHashMap<String, Job>()
+  // Long fallback re-offer for a snapshot the remote refused only because its slot was busy. Kept
+  // apart from the error ladder so backpressure never consumes the failure budget.
+  private val queuedSnapshotJobs = ConcurrentHashMap<String, Job>()
+  private val snapshotRetryAttempts = SnapshotRetryBudget()
   private val outboundSnapshotRetryJobs = ConcurrentHashMap<String, Job>()
-  private val outboundSnapshotRetryAttempts = ConcurrentHashMap<String, AtomicInteger>()
+  private val outboundSnapshotRetryAttempts = SnapshotRetryBudget()
   private val lastHelloNanos = ConcurrentHashMap<String, Long>()
   private val pendingHellos = ConcurrentHashMap<String, Envelope>()
+  // Each peer's most recently advertised state digest, so the queued-snapshot fallback can tell
+  // "still diverged" apart from "already converged" without shipping a full snapshot to find out.
+  private val lastRemoteDigests = ConcurrentHashMap<String, ByteArray>()
   private val helloCoalesceJobs = ConcurrentHashMap<String, Job>()
   private val outboundSnapshots = ConcurrentHashMap<String, OutboundSnapshot>()
   private val snapshotRequested = ConcurrentHashMap.newKeySet<String>()
@@ -554,6 +589,10 @@ class DittoWhiteboardTransport(
     reciprocalSnapshotJobs.clear()
     snapshotRetryJobs.values.forEach(Job::cancel)
     snapshotRetryJobs.clear()
+    hydrationSlotWaitJobs.values.forEach(Job::cancel)
+    hydrationSlotWaitJobs.clear()
+    queuedSnapshotJobs.values.forEach(Job::cancel)
+    queuedSnapshotJobs.clear()
     snapshotRetryAttempts.clear()
     outboundSnapshotRetryJobs.values.forEach(Job::cancel)
     outboundSnapshotRetryJobs.clear()
@@ -562,6 +601,7 @@ class DittoWhiteboardTransport(
     helloCoalesceJobs.values.forEach(Job::cancel)
     helloCoalesceJobs.clear()
     pendingHellos.clear()
+    lastRemoteDigests.clear()
     acceptOpenJobs.forEach(Job::cancel)
     acceptOpenJobs.clear()
     outboundSnapshots.values.forEach { it.timeoutJob?.cancel() }
@@ -576,6 +616,7 @@ class DittoWhiteboardTransport(
       peerSendMutexes.clear()
     }
     operationDispatcher.close()
+    snapshotControlDispatcher.close()
     synchronized(hydrationLock) {
       hydrations.values.forEach {
         it.timeoutJob?.cancel()
@@ -740,14 +781,21 @@ class DittoWhiteboardTransport(
           reciprocalSnapshotJobs.remove(peer)?.cancel()
         }
         snapshotRetryJobs.keys.filter { it !in visiblePeers }.forEach { peer -> snapshotRetryJobs.remove(peer)?.cancel() }
-        snapshotRetryAttempts.keys.removeIf { it !in visiblePeers }
+        hydrationSlotWaitJobs.keys.filter { it !in visiblePeers }.forEach { peer ->
+          hydrationSlotWaitJobs.remove(peer)?.cancel()
+        }
+        queuedSnapshotJobs.keys.filter { it !in visiblePeers }.forEach { peer ->
+          queuedSnapshotJobs.remove(peer)?.cancel()
+        }
+        snapshotRetryAttempts.retainPeers(visiblePeers)
         outboundSnapshotRetryJobs.keys.filter { it !in visiblePeers }.forEach { peer ->
           outboundSnapshotRetryJobs.remove(peer)?.cancel()
         }
-        outboundSnapshotRetryAttempts.keys.removeIf { it !in visiblePeers }
+        outboundSnapshotRetryAttempts.retainPeers(visiblePeers)
         snapshotRequested.removeIf { it !in visiblePeers }
         lastHelloNanos.keys.removeIf { it !in visiblePeers }
         pendingHellos.keys.removeIf { it !in visiblePeers }
+        lastRemoteDigests.keys.removeIf { it !in visiblePeers }
         helloCoalesceJobs.keys.filter { it !in visiblePeers }.forEach { peer ->
           helloCoalesceJobs.remove(peer)?.cancel()
         }
@@ -767,6 +815,7 @@ class DittoWhiteboardTransport(
         }
         recoveryJobs.keys.filter { it.peerKey !in visiblePeers }.forEach { key -> recoveryJobs.remove(key)?.cancel() }
         operationDispatcher.retainPeers(visiblePeers)
+        snapshotControlDispatcher.retainPeers(visiblePeers)
         // Drop traffic counters for departed peers too, otherwise the 1s rate worker re-inserts a
         // ghost PeerDiagnostics for every peer that ever sent/received traffic (via updatePeer),
         // resurrecting it in the connected-people count long after it left the mesh.
@@ -1173,7 +1222,15 @@ class DittoWhiteboardTransport(
     }
   }
 
-  private suspend fun handleReliable(
+  /**
+   * Decodes one reliable frame from [peer].
+   *
+   * Deliberately **not** `suspend`: this runs on the single reliable-ingress worker shared by every
+   * peer, so anything that can block here stalls inbound traffic for the whole mesh and cascades
+   * into stream teardowns. The compiler now enforces that — long-running work must be handed to
+   * [operationDispatcher] or [dispatchSnapshotControl], or launched, never awaited inline.
+   */
+  private fun handleReliable(
     peer: String,
     payload: ByteArray,
     allowChunkEnvelope: Boolean = true,
@@ -1285,6 +1342,7 @@ class DittoWhiteboardTransport(
     }
     val material = stateMaterial()
     val remoteDigest = envelope.hello.stateDigest.toByteArray()
+    lastRemoteDigests[peer] = remoteDigest
     val digestMatches = remoteDigest.contentEquals(material.digest)
     traceReadiness(
       "hello peer=${peer.takeLast(6)} localOps=${material.state.operations.size} " +
@@ -1439,7 +1497,12 @@ class DittoWhiteboardTransport(
     }
   }
 
-  private suspend fun beginHydration(peer: String, envelope: Envelope) {
+  /**
+   * Installs an inbound snapshot transfer. Runs on the shared reliable-ingress worker, so every
+   * step here is non-blocking: acknowledgements and superseded-transfer rejections are handed to
+   * [snapshotControlDispatcher] instead of being awaited inline.
+   */
+  private fun beginHydration(peer: String, envelope: Envelope) {
     val begin = envelope.snapshotBegin
     invalidTransferHeader(
       begin.transferId,
@@ -1448,7 +1511,8 @@ class DittoWhiteboardTransport(
       begin.sha256.toByteArray(),
     )?.let { reason ->
       recordError(peer, reason)
-      sendSnapshotAck(peer, begin.transferId.take(MAX_TRANSFER_ID_LENGTH), false, reason)
+      val ackTransferId = begin.transferId.take(MAX_TRANSFER_ID_LENGTH)
+      dispatchSnapshotControl(peer, reason) { sendSnapshotAck(peer, ackTransferId, false, reason) }
       scheduleSnapshotRetry(peer, reason, resendOutbound = false)
       return
     }
@@ -1467,22 +1531,36 @@ class DittoWhiteboardTransport(
       }
     }
     if (busy) {
-      sendSnapshotAck(peer, begin.transferId, false, "Another snapshot is already being received")
-      scheduleSnapshotRetry(
-        peer,
-        "Another snapshot is already being received",
-        resendOutbound = false,
-      )
+      val reason = "Another snapshot is already being received"
+      dispatchSnapshotControl(peer, reason) {
+        sendSnapshotAck(peer, begin.transferId, false, reason, busy = true)
+      }
+      // Not a failure — the single hydration slot is occupied. Waiting for the slot instead of
+      // burning the (seconds-long) error retry budget against a transfer that may legitimately
+      // take minutes is what keeps a full-mesh late join from collapsing into reconnect churn.
+      scheduleHydrationSlotRetry(peer)
       return
     }
     previous?.let {
-      rejectRemovedHydration(peer, it, "Snapshot was superseded by a newer transfer", retry = false)
+      dispatchSnapshotControl(peer, "Snapshot was superseded by a newer transfer") {
+        rejectRemovedHydration(peer, it, "Snapshot was superseded by a newer transfer", retry = false)
+      }
     }
     resetHydrationTimeout(peer, hydration)
     updatePeer(peer) { it.copy(snapshotStatus = SnapshotStatus.Receiving, snapshotProgress = 0f) }
   }
 
-  private suspend fun handleSnapshotChunk(peer: String, chunk: SnapshotChunk) {
+  /**
+   * Hands long-running snapshot control work to a bounded, per-peer lane. Saturation closes the
+   * peer's stream so the reconnect/Hello path reconciles, rather than blocking the caller.
+   */
+  private fun dispatchSnapshotControl(peer: String, reason: String, work: suspend () -> Unit) {
+    if (!snapshotControlDispatcher.tryDispatch(peer, work)) {
+      recoverStream(peer, STATE_STREAM_NAME, "Snapshot control queue saturated: $reason")
+    }
+  }
+
+  private fun handleSnapshotChunk(peer: String, chunk: SnapshotChunk) {
     var rejected: Pair<SnapshotHydration, String>? = null
     var progress: Float? = null
     val hydration = synchronized(hydrationLock) {
@@ -1503,8 +1581,10 @@ class DittoWhiteboardTransport(
       }
       current
     } ?: return
-    rejected?.let {
-      rejectRemovedHydration(peer, it.first, it.second)
+    rejected?.let { (rejectedHydration, reason) ->
+      dispatchSnapshotControl(peer, reason) {
+        rejectRemovedHydration(peer, rejectedHydration, reason)
+      }
       return
     }
     resetHydrationTimeout(peer, hydration)
@@ -1528,7 +1608,14 @@ class DittoWhiteboardTransport(
     } ?: return
     val job = scope.launch(ioDispatcher, start = CoroutineStart.LAZY) {
       try {
-        finishHydration(peer, hydration)
+        val finished = withTimeoutOrNull(SNAPSHOT_FINISH_TIMEOUT_MILLIS) {
+          finishHydration(peer, hydration)
+        }
+        if (finished == null) {
+          // The transfer-phase timeout was cancelled when the final chunk arrived; without this
+          // bound a stalled session handshake would hold the single hydration slot forever.
+          rejectHydration(peer, hydration, "Snapshot finalization timed out")
+        }
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (error: Exception) {
@@ -1678,7 +1765,14 @@ class DittoWhiteboardTransport(
     // Operations received after SnapshotBegin are independently valid reliable messages. Re-apply
     // them after rejecting the snapshot instead of silently discarding them with the transfer.
     hydration.bufferedOperations.values.forEach { deliverOperation(peer, it) }
-    updatePeer(peer) { it.copy(snapshotStatus = SnapshotStatus.Rejected, lastError = reason) }
+    // A superseded transfer is rejected asynchronously, by which time its replacement may already
+    // be receiving. Never let the stale rejection overwrite the live transfer's progress.
+    val superseded = synchronized(hydrationLock) { hydrations.containsKey(peer) }
+    if (superseded) {
+      recordError(peer, reason)
+    } else {
+      updatePeer(peer) { it.copy(snapshotStatus = SnapshotStatus.Rejected, lastError = reason) }
+    }
     sendSnapshotAck(peer, hydration.transferId, false, reason.take(256))
     if (retry) scheduleSnapshotRetry(peer, reason, resendOutbound = false)
   }
@@ -1720,7 +1814,7 @@ class DittoWhiteboardTransport(
     else -> null
   }
 
-  private suspend fun handleChunk(peer: String, chunk: ReliableChunk) {
+  private fun handleChunk(peer: String, chunk: ReliableChunk) {
     val digest = chunk.sha256.toByteArray()
     invalidTransferHeader(
       chunk.transferId,
@@ -1825,8 +1919,18 @@ class DittoWhiteboardTransport(
       // Stop enqueueing chunks after an immediate BEGIN rejection. The outbound retry has its own
       // direction-specific state and will start only after this producer has unwound.
       snapshotJobs.remove(peer)?.cancel()
-      updatePeer(peer) { it.copy(snapshotStatus = SnapshotStatus.Rejected, lastError = reason) }
-      scheduleOutboundSnapshotRetry(peer, reason)
+      if (snapshotAckOutcome(ack.accepted, ack.busy) == SnapshotAckOutcome.Backpressure) {
+        // Backpressure, not failure. The receiver is waiting for its hydration slot and will send a
+        // fresh Hello once it frees, which re-drives the offer. Spending the error budget here is
+        // what used to tear the stream down every few seconds during a full-mesh late join, while
+        // the receiver sat patiently waiting — so stand down and keep a long fallback only in case
+        // that Hello is lost.
+        updatePeer(peer) { it.copy(snapshotStatus = SnapshotStatus.Queued, snapshotProgress = 0f) }
+        scheduleQueuedSnapshotResend(peer)
+      } else {
+        updatePeer(peer) { it.copy(snapshotStatus = SnapshotStatus.Rejected, lastError = reason) }
+        scheduleOutboundSnapshotRetry(peer, reason)
+      }
     }
   }
 
@@ -1836,24 +1940,120 @@ class DittoWhiteboardTransport(
     resendOutbound: Boolean,
   ) {
     if (peer !in visiblePeers) return
-    val attempt = snapshotRetryAttempts.computeIfAbsent(peer) { AtomicInteger() }.incrementAndGet()
-    if (attempt > MAX_SNAPSHOT_RETRIES) {
-      recordError(peer, "Snapshot retry limit reached: $reason")
-      snapshotRetryAttempts.remove(peer)
-      outboundSnapshots.remove(peer)?.timeoutJob?.cancel()
-      recoverStream(peer, STATE_STREAM_NAME, "Snapshot retry limit reached; reconnecting")
-      return
-    }
-    snapshotRetryJobs.compute(peer) { _, existing ->
-      if (existing?.isActive == true) existing else scope.launch {
+    // The attempt is counted inside `compute` so a retry that is skipped because one is already in
+    // flight cannot silently consume the budget and trip the limit without ever having retried.
+    var exhausted = false
+    snapshotRetryJobs.compute(peer) { key, existing ->
+      if (existing?.isActive == true) return@compute existing
+      val attempt = snapshotRetryAttempts.consumeAttempt(key)
+      if (attempt == null) {
+        exhausted = true
+        return@compute null
+      }
+      scope.launch {
         try {
-          delay(250L shl (attempt - 1))
-          if (resendOutbound) launchSnapshot(peer) else sendHello(peer)
+          delay(snapshotRetryDelayMillis(attempt))
+          if (resendOutbound) launchSnapshot(key) else sendHello(key)
         } finally {
-          snapshotRetryJobs.remove(peer, currentCoroutineContext()[Job])
+          snapshotRetryJobs.remove(key, currentCoroutineContext()[Job])
         }
       }
     }
+    if (exhausted) {
+      recordError(peer, "Snapshot retry limit reached: $reason")
+      snapshotRetryAttempts.reset(peer)
+      outboundSnapshots.remove(peer)?.timeoutJob?.cancel()
+      recoverStream(peer, STATE_STREAM_NAME, "Snapshot retry limit reached; reconnecting")
+    }
+  }
+
+  /**
+   * Waits for the single inbound hydration slot instead of retrying against a fixed budget.
+   *
+   * A 16 MiB snapshot can take minutes on a BLE link, so the seconds-long error ladder used by
+   * [scheduleSnapshotRetry] would exhaust itself long before the slot frees and drop every waiting
+   * peer into a reconnect loop — precisely the thundering herd a full-mesh late join produces.
+   */
+  private fun scheduleHydrationSlotRetry(peer: String) {
+    if (peer !in visiblePeers) return
+    hydrationSlotWaitJobs.compute(peer) { key, existing ->
+      if (existing?.isActive == true) existing else scope.launch {
+        try {
+          // Bounded per holder, not in total: while the slot keeps changing hands the mesh is
+          // making progress, and a fixed total deadline would expire on a healthy 10-peer join
+          // where the slot is legitimately handed between up to nine transfers in sequence.
+          val wait = HydrationSlotWait()
+          var slotFreed = true
+          while (true) {
+            val holder = currentHydrationHolder(excluding = key) ?: break
+            if (!wait.keepWaiting(holder, HYDRATION_SLOT_POLL_MILLIS)) {
+              slotFreed = false
+              break
+            }
+            delay(HYDRATION_SLOT_POLL_MILLIS)
+            if (key !in visiblePeers) return@launch
+          }
+          if (key !in visiblePeers) return@launch
+          if (slotFreed) {
+            // Re-advertise the digest: the completed transfer may already have converged us.
+            sendHello(key)
+          } else {
+            // Waiting is not a failure, so the peer starts its reconnect with a full error budget
+            // rather than whatever it had spent before contention began.
+            snapshotRetryAttempts.reset(key)
+            recoverStream(
+              key,
+              STATE_STREAM_NAME,
+              "A peer held the snapshot slot beyond one transfer lifetime",
+            )
+          }
+        } finally {
+          hydrationSlotWaitJobs.remove(key, currentCoroutineContext()[Job])
+        }
+      }
+    }
+  }
+
+  /**
+   * Re-offers a snapshot the remote refused as busy, once, after a long delay.
+   *
+   * The receiver commits to sending a Hello when its slot frees, and that Hello is the normal path
+   * back. This exists only so a lost Hello cannot strand the pair, so it deliberately uses the slot
+   * wait's timescale rather than the error ladder's and never touches the failure budget.
+   *
+   * The re-offer is gated on the peer's last advertised digest: if the pair converged while queued
+   * (the receiver's freed-slot Hello arrived through another path, or a third peer's snapshot
+   * closed the gap), there is nothing to send and a multi-megabyte no-op transfer is skipped.
+   */
+  private fun scheduleQueuedSnapshotResend(peer: String) {
+    if (peer !in visiblePeers) return
+    queuedSnapshotJobs.compute(peer) { key, existing ->
+      if (existing?.isActive == true) existing else scope.launch {
+        try {
+          delay(MAX_HYDRATION_SLOT_WAIT_MILLIS)
+          if (key !in visiblePeers) return@launch
+          val material = stateMaterial()
+          val remoteDigest = lastRemoteDigests[key]
+          val stillDiverged = remoteDigest == null ||
+            shouldOfferSnapshot(material.state, remoteDigest, material.digest)
+          if (stillDiverged) launchSnapshot(key)
+        } finally {
+          queuedSnapshotJobs.remove(key, currentCoroutineContext()[Job])
+        }
+      }
+    }
+  }
+
+  /**
+   * Identifies whoever currently occupies the single hydration slot, ignoring [excluding].
+   *
+   * The transfer id is part of the identity so a same-peer retransmit counts as progress rather
+   * than looking like one holder that never lets go.
+   */
+  private fun currentHydrationHolder(excluding: String): String? = synchronized(hydrationLock) {
+    hydrations.entries
+      .firstOrNull { (peer, _) -> peer != excluding }
+      ?.let { (peer, hydration) -> "$peer/${hydration.transferId}" }
   }
 
   private fun clearSnapshotRetry(peer: String) {
@@ -1863,33 +2063,39 @@ class DittoWhiteboardTransport(
 
   private fun clearInboundSnapshotRetry(peer: String) {
     snapshotRetryJobs.remove(peer)?.cancel()
-    snapshotRetryAttempts.remove(peer)
+    hydrationSlotWaitJobs.remove(peer)?.cancel()
+    snapshotRetryAttempts.reset(peer)
   }
 
   private fun clearOutboundSnapshotRetry(peer: String) {
     outboundSnapshotRetryJobs.remove(peer)?.cancel()
-    outboundSnapshotRetryAttempts.remove(peer)
+    queuedSnapshotJobs.remove(peer)?.cancel()
+    outboundSnapshotRetryAttempts.reset(peer)
   }
 
   private fun scheduleOutboundSnapshotRetry(peer: String, reason: String) {
     if (peer !in visiblePeers) return
-    val attempt =
-      outboundSnapshotRetryAttempts.computeIfAbsent(peer) { AtomicInteger() }.incrementAndGet()
-    if (attempt > MAX_SNAPSHOT_RETRIES) {
-      recordError(peer, "Snapshot resend limit reached: $reason")
-      outboundSnapshotRetryAttempts.remove(peer)
-      recoverStream(peer, STATE_STREAM_NAME, "Snapshot resend limit reached; reconnecting")
-      return
-    }
+    var exhausted = false
     outboundSnapshotRetryJobs.compute(peer) { key, existing ->
-      if (existing?.isActive == true) existing else scope.launch {
+      if (existing?.isActive == true) return@compute existing
+      val attempt = outboundSnapshotRetryAttempts.consumeAttempt(key)
+      if (attempt == null) {
+        exhausted = true
+        return@compute null
+      }
+      scope.launch {
         try {
-          delay(250L shl (attempt - 1))
+          delay(snapshotRetryDelayMillis(attempt))
           launchSnapshot(key)
         } finally {
           outboundSnapshotRetryJobs.remove(key, currentCoroutineContext()[Job])
         }
       }
+    }
+    if (exhausted) {
+      recordError(peer, "Snapshot resend limit reached: $reason")
+      outboundSnapshotRetryAttempts.reset(peer)
+      recoverStream(peer, STATE_STREAM_NAME, "Snapshot resend limit reached; reconnecting")
     }
   }
 
@@ -1983,15 +2189,26 @@ class DittoWhiteboardTransport(
   private suspend fun sendSnapshot(peer: String) {
     val material = snapshotMaterial()
     val bytes = material.bytes
-    val maxData = ((streams[StreamKey(peer, STATE_STREAM_NAME)]?.maxSendSize() ?: 49_152) - 1_024)
+    val streamMaxData = ((streams[StreamKey(peer, STATE_STREAM_NAME)]?.maxSendSize() ?: 49_152) - 1_024)
       .coerceAtLeast(1_024).coerceAtMost(48_128).toInt()
+    // Fit the transfer inside the protocol's chunk-count limit even when the link's per-send
+    // budget is too small for that: an oversized chunk envelope is transparently re-chunked into
+    // reliable frames by `sendFramed` and reassembled on the receiving side. Without this floor a
+    // small-`maxSendSize` link makes the chunk-count check below throw, and the pair wedges in an
+    // offer/fail/reconnect loop that never converges — there is no other path for backlogged
+    // history to travel.
+    val maxData = maxOf(
+      streamMaxData,
+      ((bytes.size.toLong() + MAX_TRANSFER_CHUNKS - 1L) / MAX_TRANSFER_CHUNKS).toInt(),
+    )
     val chunkCount = ((bytes.size.toLong() + maxData - 1L) / maxData).toInt()
     require(chunkCount in 1..MAX_TRANSFER_CHUNKS)
     // A transfer ID identifies one attempt, not its content. The digest is already carried
     // separately; reusing it here lets an old negative ACK cancel a newer retry of identical bytes.
     val transferId = UUID.randomUUID().toString()
     val outbound = OutboundSnapshot(transferId)
-    outboundSnapshots[peer] = outbound
+    // Cancel any superseded attempt's 5-minute timeout job instead of leaking it.
+    outboundSnapshots.put(peer, outbound)?.timeoutJob?.cancel()
     outbound.timeoutJob = scope.launch {
       delay(MAX_SNAPSHOT_TRANSFER_LIFETIME_MILLIS)
       if (outboundSnapshots.remove(peer, outbound)) {
@@ -2035,10 +2252,24 @@ class DittoWhiteboardTransport(
     }
   }
 
-  private suspend fun sendSnapshotAck(peer: String, transferId: String, accepted: Boolean, error: String) {
+  /**
+   * [busy] marks a refusal caused only by the occupied hydration slot. The sender must treat that
+   * as backpressure rather than spending its error budget and reconnecting.
+   */
+  private suspend fun sendSnapshotAck(
+    peer: String,
+    transferId: String,
+    accepted: Boolean,
+    error: String,
+    busy: Boolean = false,
+  ) {
     enqueueOutbox(peer,
       baseEnvelope().setSnapshotAck(
-        SnapshotAck.newBuilder().setTransferId(transferId).setAccepted(accepted).setError(error),
+        SnapshotAck.newBuilder()
+          .setTransferId(transferId)
+          .setAccepted(accepted)
+          .setError(error)
+          .setBusy(busy),
       ).build().toByteArray(),
     )
   }
@@ -2201,11 +2432,16 @@ class DittoWhiteboardTransport(
     reciprocalSnapshotJobs.clear()
     snapshotRetryJobs.values.forEach(Job::cancel)
     snapshotRetryJobs.clear()
+    hydrationSlotWaitJobs.values.forEach(Job::cancel)
+    hydrationSlotWaitJobs.clear()
+    queuedSnapshotJobs.values.forEach(Job::cancel)
+    queuedSnapshotJobs.clear()
     outboundSnapshotRetryJobs.values.forEach(Job::cancel)
     outboundSnapshotRetryJobs.clear()
     helloCoalesceJobs.values.forEach(Job::cancel)
     helloCoalesceJobs.clear()
     pendingHellos.clear()
+    lastRemoteDigests.clear()
     snapshotRetryAttempts.clear()
     outboundSnapshotRetryAttempts.clear()
     snapshotRequested.clear()
@@ -2240,6 +2476,7 @@ class DittoWhiteboardTransport(
     acceptors.forEach(DittoAcceptor::close)
     acceptors.clear()
     operationDispatcher.close()
+    snapshotControlDispatcher.close()
     transportJob.cancel()
     ditto.sync.stop()
     ditto.close()

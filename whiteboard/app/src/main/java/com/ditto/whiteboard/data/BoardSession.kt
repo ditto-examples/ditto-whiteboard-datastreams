@@ -23,6 +23,7 @@ import com.ditto.whiteboard.protocol.MAX_OPERATION_POINTS
 import com.ditto.whiteboard.protocol.MAX_ERASER_POINTS
 import com.ditto.whiteboard.protocol.MAX_SESSION_LAMPORT
 import com.ditto.whiteboard.protocol.WhiteboardProtocol
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -134,52 +135,63 @@ class BoardSession(
     if (transportJob == null) {
       transportJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
         transport.events.collect { event ->
-          when (event) {
-            is TransportEvent.ReliableOperationReceived -> {
-              var applied = false
-              try {
-                val prepared = prepareOperation(activeClock, event.operation)
-                event.prepared?.complete(prepared)
-                if (!prepared) return@collect
-                if (event.committed?.await() == false) return@collect
-                val changed = applyPreparedOperation(event.operation)
-                applied = changed || event.operation.id in mutableBoardState.value.operations
-              } finally {
-                event.prepared?.complete(false)
-                event.applied?.complete(applied)
-              }
-            }
-            is TransportEvent.LivePreviewReceived ->
-              if (event.preview.peerKey != localPeerKey) receivePreview(event.preview)
-            is TransportEvent.SnapshotMerged -> {
-              var applied = false
-              try {
-                val maximumStamp = event.operations.maxOfOrNull(BoardOperation::stamp)
-                if (
-                  maximumStamp != null &&
-                  !prepareClockFor(activeClock, maximumStamp)
-                ) {
+          // Guard every event. Without this, one unexpected failure while applying a remote
+          // operation completes this collector for good: local editing keeps working while every
+          // further remote edit is silently ignored, with no repair path because the transport's
+          // digest already counts the operation. The transport applies the same discipline to its
+          // own reliable-ingress worker. Cancellation still propagates so shutdown stays prompt.
+          try {
+            when (event) {
+              is TransportEvent.ReliableOperationReceived -> {
+                var applied = false
+                try {
+                  val prepared = prepareOperation(activeClock, event.operation)
+                  event.prepared?.complete(prepared)
+                  if (!prepared) return@collect
+                  if (event.committed?.await() == false) return@collect
+                  val changed = applyPreparedOperation(event.operation)
+                  applied = changed || event.operation.id in mutableBoardState.value.operations
+                } finally {
                   event.prepared?.complete(false)
-                  return@collect
+                  event.applied?.complete(applied)
                 }
-                event.prepared?.complete(true)
-                if (event.committed?.await() == false) return@collect
-                // Advance the clock before exposing transport readiness. The transport awaits the
-                // event acknowledgement, preventing local edits from racing below snapshot history.
-                mutableBoardState.update { BoardReducer.merge(it, event.operations) }
-                event.operations.filterIsInstance<BoardOperation.Commit>().forEach {
-                  completeGesture(it.id.senderPeerKey, it.gestureId)
-                }
-                event.operations.filterIsInstance<BoardOperation.Erase>().forEach {
-                  completeGesture(it.id.senderPeerKey, it.gestureId)
-                }
-                applied = true
-              } finally {
-                event.prepared?.complete(false)
-                event.applied?.complete(applied)
               }
+              is TransportEvent.LivePreviewReceived ->
+                if (event.preview.peerKey != localPeerKey) receivePreview(event.preview)
+              is TransportEvent.SnapshotMerged -> {
+                var applied = false
+                try {
+                  val maximumStamp = event.operations.maxOfOrNull(BoardOperation::stamp)
+                  if (
+                    maximumStamp != null &&
+                    !prepareClockFor(activeClock, maximumStamp)
+                  ) {
+                    event.prepared?.complete(false)
+                    return@collect
+                  }
+                  event.prepared?.complete(true)
+                  if (event.committed?.await() == false) return@collect
+                  // Advance the clock before exposing transport readiness. The transport awaits the
+                  // event acknowledgement, preventing local edits from racing below snapshot history.
+                  mutableBoardState.update { BoardReducer.merge(it, event.operations) }
+                  event.operations.filterIsInstance<BoardOperation.Commit>().forEach {
+                    completeGesture(it.id.senderPeerKey, it.gestureId)
+                  }
+                  event.operations.filterIsInstance<BoardOperation.Erase>().forEach {
+                    completeGesture(it.id.senderPeerKey, it.gestureId)
+                  }
+                  applied = true
+                } finally {
+                  event.prepared?.complete(false)
+                  event.applied?.complete(applied)
+                }
+              }
+              is TransportEvent.IncompatiblePeer -> Unit
             }
-            is TransportEvent.IncompatiblePeer -> Unit
+          } catch (cancelled: CancellationException) {
+            throw cancelled
+          } catch (error: Exception) {
+            mutableError.value = messages.remoteUpdateFailed
           }
         }
       }

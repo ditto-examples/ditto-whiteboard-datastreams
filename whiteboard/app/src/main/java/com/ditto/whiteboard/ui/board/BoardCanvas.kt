@@ -323,7 +323,9 @@ fun BoardCanvas(
           text = message,
           modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
           style = MaterialTheme.typography.bodySmall,
-          maxLines = 1,
+          // Remediation instructions ("close and reopen the app…") live in these messages; a
+          // single ellipsized line cuts off exactly the part that tells the user what to do.
+          maxLines = 3,
           overflow = TextOverflow.Ellipsis,
         )
       }

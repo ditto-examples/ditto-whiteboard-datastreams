@@ -28,9 +28,13 @@ and connected-people semantics. Screenshot declarations span 400, 610, and
 scale. They also cover profile editing, both permission states, connected people,
 and Troubleshooting on representative phone, landscape, and tablet windows.
 
-Screenshot references are committed and CI validates every render. When an
-intentional UI change occurs, run `./gradlew :app:updateDebugScreenshotTest`,
-inspect every changed image, and commit the approved references.
+Screenshot references are committed and CI validates every render. References
+are canonical to the CI runner (Ubuntu): Skia and font anti-aliasing differ
+enough across operating systems that references rendered on macOS fail CI
+validation. When an intentional UI change occurs, dispatch the
+**Android verification** workflow with `update_screenshots=true`, download the
+`screenshot-references` artifact, inspect every changed image, and commit the
+approved references. Do not regenerate references locally.
 
 ## Physical-device acceptance
 

@@ -25,8 +25,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -45,11 +45,13 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ditto.whiteboard.domain.BOARD_HEIGHT
+import com.ditto.whiteboard.R
 import com.ditto.whiteboard.domain.BOARD_WIDTH
 import com.ditto.whiteboard.domain.DEFAULT_ERASER_RADIUS
 import com.ditto.whiteboard.domain.DEFAULT_STROKE_WIDTH
@@ -62,6 +64,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import java.util.UUID
 
 private const val ZOOM_STEP = 1.25f
 
@@ -72,6 +75,19 @@ private const val GRID_MAJOR_STEP = 480
 /** Alpha applied to remote vs. the local in-progress preview so live strokes read as tentative. */
 private const val REMOTE_PREVIEW_ALPHA = 0.55f
 private const val LOCAL_PREVIEW_ALPHA = 0.72f
+private const val LIVE_PREVIEW_SEGMENT_POINTS = 32
+private const val MAX_ACTIVE_STROKE_POINTS = 4_096
+
+private data class CachedBoardObject(
+  val value: BoardObject,
+  val freehandPath: Path? = null,
+  val textPaint: Paint? = null,
+)
+
+private data class CachedLivePreview(
+  val value: LivePreview,
+  val path: Path? = null,
+)
 
 @Composable
 fun BoardCanvas(
@@ -79,22 +95,53 @@ fun BoardCanvas(
   previews: List<LivePreview>,
   tool: DrawingTool,
   colorArgb: Int,
-  onPreview: (List<LogicalPoint>) -> Unit,
-  onCommit: (List<LogicalPoint>) -> Unit,
-  connectivityMessage: String? = null,
+  onPreview: (String, List<LogicalPoint>) -> Unit,
+  onCommit: (String, List<LogicalPoint>) -> Unit,
   modifier: Modifier = Modifier,
+  connectivityMessage: String? = null,
+  editingEnabled: Boolean = true,
 ) {
+  val boardDescription = stringResource(R.string.board_canvas_description)
   var viewport by remember { mutableStateOf(BoardViewport()) }
-  var activePoints by remember { mutableStateOf(emptyList<LogicalPoint>()) }
+  val activePoints = remember { mutableStateListOf<LogicalPoint>() }
+  val activePath = remember { Path() }
   var viewportInitialized by remember { mutableStateOf(false) }
-
-  LaunchedEffect(viewport.canvasWidth, viewport.canvasHeight) {
-    if (viewport.canvasWidth == 0 || viewport.canvasHeight == 0) return@LaunchedEffect
-    viewport = if (!viewportInitialized) {
-      viewportInitialized = true
-      viewport.copy(zoom = viewport.fillZoom(), panX = 0f, panY = 0f).withConstrainedPan()
-    } else {
-      viewport.withConstrainedPan()
+  val renderCache = remember { mutableMapOf<com.ditto.whiteboard.domain.ObjectId, CachedBoardObject>() }
+  val renderObjects = remember(boardState.objects) {
+    renderCache.keys.retainAll(boardState.objects.keys)
+    boardState.objects.values.sortedBy(BoardObject::stamp).map { boardObject ->
+      renderCache[boardObject.id]
+        ?.takeIf { it.value == boardObject }
+        ?: CachedBoardObject(
+          value = boardObject,
+          freehandPath = (boardObject as? BoardObject.Freehand)
+            ?.takeIf { it.points.size >= 2 }
+            ?.let { freehand ->
+              Path().apply {
+                moveTo(freehand.points.first().x.toFloat(), freehand.points.first().y.toFloat())
+                for (index in 1 until freehand.points.size) {
+                  val point = freehand.points[index]
+                  lineTo(point.x.toFloat(), point.y.toFloat())
+                }
+              }
+            },
+          textPaint = (boardObject as? BoardObject.Text)?.let { text ->
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+              color = text.colorArgb
+              textSize = text.size.toFloat()
+            }
+          },
+        ).also { renderCache[boardObject.id] = it }
+    }
+  }
+  val renderPreviews = remember(previews) {
+    previews.map { preview ->
+      CachedLivePreview(
+        value = preview,
+        path = preview.points.toDrawingPath().takeIf {
+          preview.tool == DrawingTool.Pen || preview.tool == DrawingTool.Eraser
+        },
+      )
     }
   }
 
@@ -106,17 +153,29 @@ fun BoardCanvas(
     Canvas(
       Modifier
         .fillMaxSize()
-        .onSizeChanged { viewport = viewport.copy(canvasWidth = it.width, canvasHeight = it.height) }
-        .semantics {
-          contentDescription =
-            "Shared 3840 by 2160 drawing board. Draw with one finger or a stylus. Pan and zoom with two fingers."
+        .onSizeChanged { size ->
+          val initializeToFill = !viewportInitialized && size.width > 0 && size.height > 0
+          viewport = viewport.resized(size.width, size.height, initializeToFill)
+          if (initializeToFill) viewportInitialized = true
         }
-        .pointerInput(tool, colorArgb) {
-        awaitEachGesture {
+        .semantics {
+          contentDescription = boardDescription
+        }
+        .pointerInput(tool, colorArgb, editingEnabled) {
+        try {
+          awaitEachGesture {
           val down = awaitFirstDown(requireUnconsumed = false)
-          var drawing = true
-          activePoints = listOf(viewport.logicalPoint(down.position.x, down.position.y))
-          onPreview(activePoints)
+          val gestureId = UUID.randomUUID().toString()
+          var drawing = editingEnabled &&
+            viewport.containsBoardPoint(down.position.x, down.position.y)
+          activePoints.clear()
+          activePath.reset()
+          if (drawing) {
+            val firstPoint = viewport.logicalPoint(down.position.x, down.position.y)
+            activePoints += firstPoint
+            activePath.moveTo(firstPoint.x.toFloat(), firstPoint.y.toFloat())
+            onPreview(gestureId, activePoints)
+          }
           while (true) {
             val event = awaitPointerEvent()
             val pressed = event.changes.count { it.pressed }
@@ -124,7 +183,8 @@ fun BoardCanvas(
               // A second finger switches from drawing to pan/zoom: the in-progress stroke is
               // abandoned (never committed). Any preview already broadcast to peers self-expires.
               drawing = false
-              activePoints = emptyList()
+              activePoints.clear()
+              activePath.reset()
               val centroid = event.calculateCentroid()
               val panDelta = event.calculatePan()
               viewport = viewport
@@ -134,20 +194,45 @@ fun BoardCanvas(
             } else if (drawing) {
               event.changes.firstOrNull { it.positionChanged() }?.let { change ->
                 val point = viewport.logicalPoint(change.position.x, change.position.y)
-                activePoints = when (tool) {
-                  DrawingTool.Pen, DrawingTool.Eraser -> activePoints + point
-                  else -> listOf(activePoints.firstOrNull() ?: point, point)
+                when (tool) {
+                  DrawingTool.Pen, DrawingTool.Eraser -> {
+                    if (activePoints.lastOrNull() != point) {
+                      if (activePoints.size >= MAX_ACTIVE_STROKE_POINTS) {
+                        // Downsample in place so a gesture of arbitrary duration remains bounded
+                        // while retaining its full start-to-current shape.
+                        val reduced = activePoints.filterIndexed { index, _ ->
+                          index == 0 || index == activePoints.lastIndex || index % 2 == 0
+                        }
+                        activePoints.clear()
+                        activePoints.addAll(reduced)
+                        activePath.setFrom(reduced)
+                      }
+                      activePoints += point
+                      activePath.lineTo(point.x.toFloat(), point.y.toFloat())
+                    }
+                  }
+                  else -> {
+                    if (activePoints.isEmpty()) activePoints += point
+                    if (activePoints.size == 1) activePoints += point else activePoints[1] = point
+                  }
                 }
-                onPreview(activePoints)
+                onPreview(gestureId, activePoints)
                 change.consume()
               }
             }
             if (event.changes.all { !it.pressed }) {
-              if (drawing && activePoints.isNotEmpty()) onCommit(activePoints)
-              activePoints = emptyList()
+              if (drawing && activePoints.isNotEmpty()) onCommit(gestureId, activePoints.toList())
+              activePoints.clear()
+              activePath.reset()
               break
             }
           }
+          }
+        } finally {
+          // pointerInput is cancelled when the tool/readiness key changes or this composable leaves
+          // composition. Do not leave an abandoned in-progress stroke rendered after cancellation.
+          activePoints.clear()
+          activePath.reset()
         }
       },
     ) {
@@ -172,11 +257,23 @@ fun BoardCanvas(
           scale(scale, scale, Offset.Zero)
         }) {
           drawBoardGrid(scale)
-          boardState.objects.values.sortedBy(BoardObject::stamp).forEach(::drawBoardObject)
-          previews.forEach { preview ->
-            drawPreview(preview.tool, preview.points, Color(preview.colorArgb).copy(alpha = REMOTE_PREVIEW_ALPHA))
+          renderObjects.forEach(::drawBoardObject)
+          renderPreviews.forEach { preview ->
+            drawPreview(
+              preview.value.tool,
+              preview.value.points,
+              Color(preview.value.colorArgb).copy(alpha = REMOTE_PREVIEW_ALPHA),
+              preview.path,
+            )
           }
-          if (activePoints.isNotEmpty()) drawPreview(tool, activePoints, Color(colorArgb).copy(alpha = LOCAL_PREVIEW_ALPHA))
+          if (activePoints.isNotEmpty()) {
+            drawPreview(
+              tool,
+              activePoints,
+              Color(colorArgb).copy(alpha = LOCAL_PREVIEW_ALPHA),
+              activePath.takeIf { tool == DrawingTool.Pen || tool == DrawingTool.Eraser },
+            )
+          }
         }
       }
       drawRect(Color(0xFF899197), topLeft = origin, size = Size(boardWidth, boardHeight), style = Stroke(1.5f))
@@ -191,23 +288,23 @@ fun BoardCanvas(
     ) {
       Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = { viewport = viewport.withZoom(viewport.zoom / ZOOM_STEP) }) {
-          Icon(Icons.Default.ZoomOut, contentDescription = "Zoom out")
+          Icon(Icons.Default.ZoomOut, contentDescription = stringResource(R.string.action_zoom_out))
         }
         Text(
           text = "${(viewport.zoom * 100).roundToInt()}%",
           style = MaterialTheme.typography.labelLarge,
         )
         IconButton(onClick = { viewport = viewport.withZoom(viewport.zoom * ZOOM_STEP) }) {
-          Icon(Icons.Default.ZoomIn, contentDescription = "Zoom in")
+          Icon(Icons.Default.ZoomIn, contentDescription = stringResource(R.string.action_zoom_in))
         }
         TextButton(
           onClick = { viewport = viewport.withZoom(1f) },
           contentPadding = PaddingValues(horizontal = 8.dp),
-        ) { Text("Fit") }
+        ) { Text(stringResource(R.string.action_fit_board)) }
         TextButton(
           onClick = { viewport = viewport.withZoom(viewport.fillZoom()) },
           contentPadding = PaddingValues(horizontal = 8.dp),
-        ) { Text("Fill") }
+        ) { Text(stringResource(R.string.action_fill_board)) }
       }
     }
 
@@ -226,7 +323,9 @@ fun BoardCanvas(
           text = message,
           modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
           style = MaterialTheme.typography.bodySmall,
-          maxLines = 1,
+          // Remediation instructions ("close and reopen the app…") live in these messages; a
+          // single ellipsized line cuts off exactly the part that tells the user what to do.
+          maxLines = 3,
           overflow = TextOverflow.Ellipsis,
         )
       }
@@ -250,10 +349,19 @@ private fun DrawScope.drawBoardGrid(scale: Float) {
   }
 }
 
-private fun DrawScope.drawBoardObject(boardObject: BoardObject) {
+private fun DrawScope.drawBoardObject(cached: CachedBoardObject) {
+  val boardObject = cached.value
   val color = Color(boardObject.colorArgb)
   when (boardObject) {
-    is BoardObject.Freehand -> drawLogicalPath(boardObject.points, color, boardObject.width.toFloat())
+    is BoardObject.Freehand -> {
+      if (boardObject.points.size == 1) {
+        drawCircle(color, boardObject.width / 2f, boardObject.points.first().offset)
+      } else {
+        cached.freehandPath?.let { path ->
+          drawPath(path, color, style = Stroke(boardObject.width.toFloat(), cap = StrokeCap.Round))
+        }
+      }
+    }
     is BoardObject.Line -> drawLine(color, boardObject.start.offset, boardObject.end.offset, boardObject.width.toFloat(), StrokeCap.Round)
     is BoardObject.Rectangle -> {
       val left = minOf(boardObject.start.x, boardObject.end.x).toFloat()
@@ -279,19 +387,28 @@ private fun DrawScope.drawBoardObject(boardObject: BoardObject) {
       boardObject.text,
       boardObject.anchor.x.toFloat(),
       boardObject.anchor.y.toFloat(),
-      Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        this.color = boardObject.colorArgb
-        textSize = boardObject.size.toFloat()
-      },
+      checkNotNull(cached.textPaint),
     )
   }
 }
 
-private fun DrawScope.drawPreview(tool: DrawingTool, points: List<LogicalPoint>, color: Color) {
+private fun DrawScope.drawPreview(
+  tool: DrawingTool,
+  points: List<LogicalPoint>,
+  color: Color,
+  cachedPath: Path? = null,
+) {
   if (points.isEmpty()) return
   when (tool) {
-    DrawingTool.Pen -> drawLogicalPath(points, color, DEFAULT_STROKE_WIDTH.toFloat())
-    DrawingTool.Eraser -> drawLogicalPath(points, Color(0xFFE05252).copy(alpha = color.alpha), (DEFAULT_ERASER_RADIUS * 2).toFloat())
+    DrawingTool.Pen ->
+      drawLogicalPath(points, color, DEFAULT_STROKE_WIDTH.toFloat(), cachedPath)
+    DrawingTool.Eraser ->
+      drawLogicalPath(
+        points,
+        Color(0xFFE05252).copy(alpha = color.alpha),
+        (DEFAULT_ERASER_RADIUS * 2).toFloat(),
+        cachedPath,
+      )
     DrawingTool.Line -> if (points.size > 1) drawLine(color, points.first().offset, points.last().offset, DEFAULT_STROKE_WIDTH.toFloat(), StrokeCap.Round)
     DrawingTool.Rectangle -> if (points.size > 1) {
       val first = points.first(); val last = points.last()
@@ -305,17 +422,30 @@ private fun DrawScope.drawPreview(tool: DrawingTool, points: List<LogicalPoint>,
   }
 }
 
-private fun DrawScope.drawLogicalPath(points: List<LogicalPoint>, color: Color, width: Float) {
+private fun DrawScope.drawLogicalPath(
+  points: List<LogicalPoint>,
+  color: Color,
+  width: Float,
+  cachedPath: Path? = null,
+) {
   if (points.size == 1) {
     drawCircle(color, width / 2f, points.first().offset)
     return
   }
   if (points.size < 2) return
-  val path = Path().apply {
-    moveTo(points.first().x.toFloat(), points.first().y.toFloat())
-    points.drop(1).forEach { lineTo(it.x.toFloat(), it.y.toFloat()) }
+  drawPath(cachedPath ?: points.toDrawingPath(), color, style = Stroke(width, cap = StrokeCap.Round))
+}
+
+private fun List<LogicalPoint>.toDrawingPath(): Path = Path().also { it.setFrom(this) }
+
+private fun Path.setFrom(points: List<LogicalPoint>) {
+  reset()
+  points.firstOrNull()?.let { first ->
+    moveTo(first.x.toFloat(), first.y.toFloat())
+    for (index in 1 until points.size) {
+      lineTo(points[index].x.toFloat(), points[index].y.toFloat())
+    }
   }
-  drawPath(path, color, style = Stroke(width, cap = StrokeCap.Round))
 }
 
 private val LogicalPoint.offset: Offset get() = Offset(x.toFloat(), y.toFloat())

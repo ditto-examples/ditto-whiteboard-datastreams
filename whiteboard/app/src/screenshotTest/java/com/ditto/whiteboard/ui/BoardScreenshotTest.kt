@@ -11,9 +11,20 @@ import com.ditto.whiteboard.domain.LogicalPoint
 import com.ditto.whiteboard.domain.ObjectId
 import com.ditto.whiteboard.domain.OperationId
 import com.ditto.whiteboard.domain.OperationStamp
+import com.ditto.whiteboard.domain.UserProfile
+import com.ditto.whiteboard.NearbyPermissionPrompt
+import com.ditto.whiteboard.data.ProfileSettings
+import com.ditto.whiteboard.transport.PeerDiagnostics
+import com.ditto.whiteboard.transport.PresenceConnection
+import com.ditto.whiteboard.transport.SnapshotStatus
 import com.ditto.whiteboard.transport.TransportDiagnostics
+import com.ditto.whiteboard.transport.TransportMode
 import com.ditto.whiteboard.ui.board.BoardScreen
+import com.ditto.whiteboard.ui.board.ConnectedPeoplePane
+import com.ditto.whiteboard.ui.profile.ProfileSetupScreen
 import com.ditto.whiteboard.ui.theme.WhiteboardTheme
+import com.ditto.whiteboard.ui.troubleshooting.TroubleshootingScreen
+import kotlinx.collections.immutable.persistentMapOf
 
 @Target(AnnotationTarget.FUNCTION, AnnotationTarget.ANNOTATION_CLASS)
 @Retention(AnnotationRetention.BINARY)
@@ -49,18 +60,87 @@ fun BoardLargeFontScreenshot() {
   PreviewBoard()
 }
 
+@PreviewTest
+@Preview(name = "Profile phone", widthDp = 400, heightDp = 800)
+@Preview(name = "Profile short landscape", widthDp = 610, heightDp = 400)
+@Composable
+fun ProfileSetupScreenshots() {
+  WhiteboardTheme {
+    ProfileSetupScreen(
+      existing = ProfileSettings("Ada Lovelace", 0xFF0057B8.toInt()),
+      editing = true,
+      onSave = { _, _ -> },
+    )
+  }
+}
+
+@PreviewTest
+@Preview(name = "Permission phone", widthDp = 400, heightDp = 800)
+@Composable
+fun PermissionExplanationScreenshot() {
+  WhiteboardTheme {
+    NearbyPermissionDialog(
+      prompt = NearbyPermissionPrompt.Explain,
+      onRequest = {},
+      onUseLocalPreview = {},
+      onOpenSettings = {},
+    )
+  }
+}
+
+@PreviewTest
+@Preview(name = "Permission denied landscape", widthDp = 610, heightDp = 400)
+@Composable
+fun PermissionDeniedScreenshot() {
+  WhiteboardTheme {
+    NearbyPermissionDialog(
+      prompt = NearbyPermissionPrompt.Denied,
+      onRequest = {},
+      onUseLocalPreview = {},
+      onOpenSettings = {},
+    )
+  }
+}
+
+@PreviewTest
+@Preview(name = "People sheet", widthDp = 400, heightDp = 560)
+@Preview(name = "People pane", widthDp = 900, heightDp = 900)
+@Composable
+fun ConnectedPeopleScreenshots() {
+  WhiteboardTheme {
+    ConnectedPeoplePane(
+      state = sampleUiState(),
+      onClose = {},
+      expanded = true,
+    )
+  }
+}
+
+@PreviewTest
+@Preview(name = "Troubleshooting phone", widthDp = 400, heightDp = 800)
+@Preview(name = "Troubleshooting tablet", widthDp = 900, heightDp = 800)
+@Composable
+fun TroubleshootingScreenshots() {
+  WhiteboardTheme {
+    TroubleshootingScreen(
+      diagnostics = sampleDiagnostics(),
+      onBack = {},
+    )
+  }
+}
+
 @Composable
 private fun PreviewBoard(dark: Boolean = false) {
   WhiteboardTheme(darkTheme = dark) {
     BoardScreen(
       state = BoardUiState(
         board = sampleBoard(),
-        diagnostics = TransportDiagnostics(running = true, mode = "Ditto nearby mesh"),
+        diagnostics = TransportDiagnostics(running = true, mode = TransportMode.NearbyMesh),
       ),
       onSelectTool = {},
       onSelectColor = {},
-      onPreview = {},
-      onCommit = { _, _ -> },
+      onPreview = { _, _ -> },
+      onCommit = { _, _, _ -> },
       onClear = {},
       onEditProfile = {},
       onTroubleshooting = {},
@@ -87,4 +167,40 @@ private fun sampleBoard(): BoardState {
     BoardObject.Text(ObjectId(textId), textStamp, 0xFF007A3D.toInt(), LogicalPoint(560, 650), "Hello, mesh!", 64),
   )
   return BoardReducer.merge(BoardState(), listOf(pen, text))
+}
+
+private fun sampleUiState(): BoardUiState = BoardUiState(
+  board = sampleBoard().copy(
+    profiles = persistentMapOf(
+      "local-peer" to UserProfile("local-peer", "Ada Lovelace", 0xFF0057B8.toInt()),
+      "grace-peer" to UserProfile("grace-peer", "Grace Hopper", 0xFF007A3D.toInt()),
+    ),
+  ),
+  diagnostics = sampleDiagnostics(),
+)
+
+private fun sampleDiagnostics(): TransportDiagnostics {
+  val grace = PeerDiagnostics(
+    peerKey = "grace-peer",
+    displayName = "Grace Hopper",
+    colorArgb = 0xFF007A3D.toInt(),
+    transports = setOf("Bluetooth LE", "LAN"),
+    liveConnected = true,
+    stateConnected = true,
+    snapshotStatus = SnapshotStatus.Acknowledged,
+    snapshotProgress = 1f,
+    transmitMessagesPerSecond = 14.0,
+    receiveMessagesPerSecond = 11.0,
+  )
+  return TransportDiagnostics(
+    localPeerKey = "local-peer",
+    running = true,
+    editingReady = true,
+    mode = TransportMode.NearbyMesh,
+    peers = mapOf(grace.peerKey to grace),
+    presenceConnections = setOf(
+      PresenceConnection("local-peer", grace.peerKey, "Bluetooth LE"),
+      PresenceConnection("local-peer", grace.peerKey, "LAN"),
+    ),
+  )
 }

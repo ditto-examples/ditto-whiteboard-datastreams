@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package ditto.whiteboard.v1;
+package ditto.whiteboard.v4;
 
 option java_package = "com.ditto.whiteboard.protocol.proto";
 option java_multiple_files = true;
@@ -26,9 +26,9 @@ message Envelope {
 
 message Hello {
   bytes profile_json = 1;
-  bool ready = 2;
+  reserved 2;
   bytes state_digest = 3;
-  map<string, uint64> high_water_marks = 4;
+  reserved 4;
 }
 
 message ReliableOperation {
@@ -56,6 +56,11 @@ message SnapshotAck {
   string transfer_id = 1;
   bool accepted = 2;
   string error = 3;
+  // Set with accepted=false when the receiver refused only because its single hydration slot was
+  // occupied. Without this the sender cannot tell backpressure from failure, so it burns its error
+  // retry budget and tears down the stream while the receiver is patiently waiting for the slot —
+  // the exact reconnect churn a full-mesh late join produces.
+  bool busy = 4;
 }
 
 message ReliableChunk {
@@ -72,6 +77,7 @@ message LiveEnvelope {
   string board_id = 2;
   string sender_peer_key = 3;
   uint64 sender_sequence = 4;
+  string sender_session_id = 5;
   LivePreview preview = 10;
 }
 
@@ -79,4 +85,5 @@ message LivePreview {
   uint32 tool = 1;
   sint32 color_argb = 2;
   repeated sint32 coordinate_deltas = 3 [packed = true];
+  string gesture_id = 4;
 }

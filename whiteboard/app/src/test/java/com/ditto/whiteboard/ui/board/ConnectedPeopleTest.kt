@@ -8,13 +8,14 @@ import com.ditto.whiteboard.ui.BoardUiState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
+import kotlinx.collections.immutable.persistentMapOf
 
 class ConnectedPeopleTest {
   @Test
   fun rosterContainsLocalAndCurrentlyPresentCompatiblePeersOnly() {
     val state = BoardUiState(
       board = BoardState(
-        profiles = mapOf(
+        profiles = persistentMapOf(
           "local" to UserProfile("local", "Ada", 0xFF0057B8.toInt()),
           "connected" to UserProfile("connected", "Grace", 0xFF007A3D.toInt()),
           "stale" to UserProfile("stale", "Linus", 0xFFC62828.toInt()),

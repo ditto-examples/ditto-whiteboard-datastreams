@@ -44,6 +44,18 @@ class BoardReducerTest {
     assertEquals(listOf("z", "a", "b"), stamps.map(OperationStamp::peerKey))
   }
 
+  @Test
+  fun equivocatedOperationIdConvergesRegardlessOfDeliveryOrder() {
+    val first = commit("a", 1, 1, 10)
+    val second = commit("a", 1, 1, 200)
+
+    val firstThenSecond = listOf(first, second).fold(BoardState(), BoardReducer::apply)
+    val secondThenFirst = listOf(second, first).fold(BoardState(), BoardReducer::apply)
+
+    assertEquals(firstThenSecond, secondThenFirst)
+    assertEquals(canonicalOperation(first, second), firstThenSecond.operations[first.id])
+  }
+
   private fun commit(peer: String, sequence: Long, lamport: Long, x: Int): BoardOperation.Commit {
     val id = OperationId(peer, sequence)
     val stamp = OperationStamp(lamport, peer, sequence)

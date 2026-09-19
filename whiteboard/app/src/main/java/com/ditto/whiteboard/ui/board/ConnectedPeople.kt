@@ -30,12 +30,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ditto.whiteboard.ui.BoardUiState
+import com.ditto.whiteboard.R
 import com.ditto.whiteboard.ui.WHITEBOARD_COLORS
 
 internal data class ConnectedPerson(
@@ -50,7 +53,7 @@ internal fun BoardUiState.connectedPeople(): List<ConnectedPerson> {
   val localProfile = board.profiles[localPeerKey]
   val local = ConnectedPerson(
     peerKey = localPeerKey,
-    displayName = localProfile?.displayName ?: "You",
+    displayName = localProfile?.displayName.orEmpty(),
     colorArgb = localProfile?.colorArgb ?: colorArgb,
     isLocal = true,
   )
@@ -61,7 +64,7 @@ internal fun BoardUiState.connectedPeople(): List<ConnectedPerson> {
       val profile = board.profiles[peer.peerKey]
       ConnectedPerson(
         peerKey = peer.peerKey,
-        displayName = profile?.displayName ?: peer.displayName ?: "Nearby artist ${peer.peerKey.takeLast(4)}",
+        displayName = profile?.displayName ?: peer.displayName.orEmpty(),
         colorArgb = profile?.colorArgb ?: peer.colorArgb,
         isLocal = false,
       )
@@ -91,14 +94,20 @@ internal fun ConnectedPeoplePane(
         verticalAlignment = Alignment.CenterVertically,
       ) {
         Column(Modifier.weight(1f)) {
-          Text("People on this board", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
           Text(
-            text = "${people.size} connected",
+            stringResource(R.string.people_title),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+          )
+          Text(
+            text = pluralStringResource(R.plurals.people_connected, people.size, people.size),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
         }
-        IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "Close people list") }
+        IconButton(onClick = onClose) {
+          Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close_people))
+        }
       }
       HorizontalDivider()
       LazyColumn(
@@ -111,7 +120,7 @@ internal fun ConnectedPeoplePane(
         if (people.size == 1) {
           item {
             Text(
-              text = "No one else is connected yet.",
+              text = stringResource(R.string.no_people_connected),
               modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -125,7 +134,20 @@ internal fun ConnectedPeoplePane(
 
 @Composable
 private fun ConnectedPersonRow(person: ConnectedPerson) {
-  val colorName = person.colorArgb?.let(::assignedColorName)
+  val colorName = person.colorArgb?.let { assignedColorName(it) }
+  val displayName = if (person.displayName.isBlank()) {
+    if (person.isLocal) {
+      stringResource(R.string.you)
+    } else {
+      stringResource(R.string.nearby_artist, person.peerKey.takeLast(4))
+    }
+  } else person.displayName
+  val syncing = stringResource(R.string.color_syncing)
+  val assignedColorDescription = if (colorName != null) {
+    stringResource(R.string.assigned_color, colorName)
+  } else {
+    stringResource(R.string.assigned_color_syncing)
+  }
   Row(
     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
     verticalAlignment = Alignment.CenterVertically,
@@ -137,7 +159,7 @@ private fun ConnectedPersonRow(person: ConnectedPerson) {
         .background(person.colorArgb?.let(::Color) ?: MaterialTheme.colorScheme.surfaceVariant, CircleShape)
         .border(2.dp, MaterialTheme.colorScheme.outline, CircleShape)
         .semantics {
-          contentDescription = colorName?.let { "$it assigned color" } ?: "Assigned color syncing"
+          contentDescription = assignedColorDescription
         },
       contentAlignment = Alignment.Center,
     ) {
@@ -152,14 +174,14 @@ private fun ConnectedPersonRow(person: ConnectedPerson) {
     }
     Column(Modifier.weight(1f)) {
       Text(
-        text = person.displayName,
+        text = displayName,
         style = MaterialTheme.typography.titleMedium,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
       )
       val detail = when {
-        person.isLocal -> "You • ${colorName ?: "Color syncing"}"
-        colorName == null -> "Color syncing…"
+        person.isLocal -> stringResource(R.string.you_with_color, colorName ?: syncing)
+        colorName == null -> syncing
         else -> colorName
       }
       Text(
@@ -173,20 +195,27 @@ private fun ConnectedPersonRow(person: ConnectedPerson) {
     if (person.isLocal) {
       Spacer(Modifier.width(4.dp))
       Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.primaryContainer) {
-        Text("You", Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium)
+        Text(
+          stringResource(R.string.you),
+          Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+          style = MaterialTheme.typography.labelMedium,
+        )
       }
     }
   }
 }
 
-private fun assignedColorName(colorArgb: Int): String = when (colorArgb) {
-  WHITEBOARD_COLORS[0] -> "Charcoal"
-  WHITEBOARD_COLORS[1] -> "Blue"
-  WHITEBOARD_COLORS[2] -> "Green"
-  WHITEBOARD_COLORS[3] -> "Red"
-  WHITEBOARD_COLORS[4] -> "Purple"
-  WHITEBOARD_COLORS[5] -> "Orange"
-  WHITEBOARD_COLORS[6] -> "Teal"
-  WHITEBOARD_COLORS[7] -> "White"
-  else -> "Custom color"
-}
+@Composable
+private fun assignedColorName(colorArgb: Int): String = stringResource(
+  when (colorArgb) {
+    WHITEBOARD_COLORS[0] -> R.string.color_charcoal
+    WHITEBOARD_COLORS[1] -> R.string.color_blue
+    WHITEBOARD_COLORS[2] -> R.string.color_green
+    WHITEBOARD_COLORS[3] -> R.string.color_red
+    WHITEBOARD_COLORS[4] -> R.string.color_purple
+    WHITEBOARD_COLORS[5] -> R.string.color_orange
+    WHITEBOARD_COLORS[6] -> R.string.color_teal
+    WHITEBOARD_COLORS[7] -> R.string.color_magenta
+    else -> R.string.color_custom
+  },
+)

@@ -1,0 +1,80 @@
+name: Android verification
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      update_screenshots:
+        description: "Regenerate screenshot reference images on this runner and upload them as an artifact instead of validating"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: whiteboard
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure credential files are never committed
+        working-directory: .
+        run: |
+          tracked="$(git ls-files -- '.env' '**/local.properties' 'local.properties')"
+          if [ -n "$tracked" ]; then
+            echo "::error::Credential files must stay untracked, but git tracks: $tracked"
+            exit 1
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Verify app
+        if: ${{ !inputs.update_screenshots }}
+        # The release bundle is an artifact that could be published, so it is built under the guard
+        # that fails the build rather than baking a Ditto license into it.
+        env:
+          WHITEBOARD_FORBID_BAKED_CREDENTIALS: "1"
+        run: |
+          ./gradlew \
+            :app:testDebugUnitTest \
+            :app:lintDebug \
+            :app:bundleRelease \
+            :app:compileDebugAndroidTestKotlin \
+            :app:validateDebugScreenshotTest
+
+      # Screenshot references are canonical to this Ubuntu runner: Skia/font anti-aliasing differs
+      # enough across OSes that references rendered on a developer's Mac fail validation here.
+      # Intentional UI changes are therefore re-baselined on CI via this workflow's
+      # `update_screenshots` dispatch, never regenerated locally.
+      - name: Update screenshot references
+        if: ${{ inputs.update_screenshots }}
+        run: ./gradlew :app:updateDebugScreenshotTest
+
+      - name: Upload regenerated screenshot references
+        if: ${{ inputs.update_screenshots }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshot-references
+          path: whiteboard/app/src/screenshotTestDebug/reference/
+
+      - name: Verify 16 KB native LOAD alignment
+        if: ${{ !inputs.update_screenshots }}
+        run: python3 ../tools/verify_elf_alignment.py app/build/outputs/bundle/release/app-release.aab

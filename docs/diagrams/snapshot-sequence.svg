@@ -22,21 +22,21 @@
   <line x1="775" y1="138" x2="775" y2="660" stroke="#2E7D32" stroke-width="1.2" stroke-dasharray="4 4"/>
 
   <!-- 1 Hello -->
-  <text x="270" y="176" font-size="11" fill="#8a969d">after both streams open…</text>
+  <text x="270" y="176" font-size="11" fill="#8a969d">after wb_state opens…</text>
   <line x1="265" y1="188" x2="773" y2="188" stroke="#0057B8" stroke-width="1.8" marker-end="url(#r)" opacity="0.85"/>
   <rect x="360" y="168" width="320" height="20" rx="6" fill="#ffffff"/>
-  <text x="520" y="183" font-size="12.5" text-anchor="middle" fill="#0057B8" font-weight="600">Hello(highWaterMarks, profile, ready)</text>
+  <text x="520" y="183" font-size="12.5" text-anchor="middle" fill="#0057B8" font-weight="600">Hello(profile, stateDigest)</text>
 
   <!-- decision -->
   <rect x="600" y="204" width="350" height="52" rx="9" fill="#fff6e9" stroke="#E08600" stroke-width="1.2"/>
-  <text x="775" y="224" font-size="11.5" text-anchor="middle" fill="#B36A00" font-weight="600">compareStateVectors(local, remote)</text>
-  <text x="775" y="242" font-size="10.5" text-anchor="middle" fill="#5b6770">LocalDominates or Concurrent + has ops → send snapshot</text>
+  <text x="775" y="224" font-size="11.5" text-anchor="middle" fill="#B36A00" font-weight="600">compare canonical state digests</text>
+  <text x="775" y="242" font-size="10.5" text-anchor="middle" fill="#5b6770">Digest differs + local has ops → offer merge snapshot</text>
 
   <!-- 2 SnapshotBegin -->
   <line x1="775" y1="284" x2="267" y2="284" stroke="#2E7D32" stroke-width="1.8" marker-end="url(#l)"/>
   <rect x="330" y="264" width="380" height="20" rx="6" fill="#ffffff"/>
   <text x="520" y="279" font-size="12.5" text-anchor="middle" fill="#2E7D32" font-weight="600">SnapshotBegin(transferId, chunkCount, byteCount, sha256)</text>
-  <text x="265" y="308" font-size="10.5" text-anchor="middle" fill="#5b6770">start hydration · start 10 s timeout</text>
+  <text x="265" y="308" font-size="10.5" text-anchor="middle" fill="#5b6770">hydrate · 30 s inactivity / 5 min hard limit</text>
 
   <!-- 3 SnapshotChunk xN -->
   <line x1="775" y1="336" x2="267" y2="336" stroke="#2E7D32" stroke-width="1.8" marker-end="url(#l)"/>
@@ -69,5 +69,5 @@
   <!-- timeout box -->
   <rect x="70" y="618" width="900" height="60" rx="10" fill="#fdecea" stroke="#C62828" stroke-width="1.2"/>
   <text x="88" y="640" font-size="12.5" font-weight="700" fill="#C62828">Timeout / failure path</text>
-  <text x="88" y="660" font-size="11.5" fill="#1b2226">No SnapshotEnd within 10 s, or SHA-256 mismatch → drop hydration, mark "Timed out"/"Rejected", re-send Hello to retry. Ops are idempotent, so a re-run is safe.</text>
+  <text x="88" y="660" font-size="11.5" fill="#1b2226">30 s idle, 5 min total, or SHA-256 mismatch → reject and retry with backoff. Ops are idempotent, so a re-run is safe.</text>
 </svg>

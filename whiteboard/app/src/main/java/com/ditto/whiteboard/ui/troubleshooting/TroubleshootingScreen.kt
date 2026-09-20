@@ -41,6 +41,7 @@ import com.ditto.whiteboard.R
 import com.ditto.whiteboard.data.DebugTransportSettings
 import com.ditto.whiteboard.transport.TransportDiagnostics
 import com.ditto.whiteboard.transport.TransportMode
+import com.ditto.whiteboard.ui.theme.dittoSwitchColors
 import com.ditto.whiteboard.ui.troubleshooting.presencegraph.PresenceGraphUiState
 import com.ditto.whiteboard.ui.troubleshooting.presencegraph.PresenceGraphView
 
@@ -193,6 +194,11 @@ private fun DebugTransportRow(
     verticalAlignment = Alignment.CenterVertically,
   ) {
     Text(label, style = MaterialTheme.typography.bodyMedium)
-    Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
+    Switch(
+      checked = checked,
+      onCheckedChange = onChange,
+      enabled = enabled,
+      colors = dittoSwitchColors(),
+    )
   }
 }

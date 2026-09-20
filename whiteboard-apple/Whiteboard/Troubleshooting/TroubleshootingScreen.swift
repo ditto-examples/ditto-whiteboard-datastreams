@@ -57,12 +57,17 @@ struct TroubleshootingScreen: View {
         }
         Section {
           Toggle("Bluetooth LE", isOn: debugBinding(\.bluetoothLEEnabled))
+            .toggleStyle(.ditto)
           Toggle("LAN", isOn: debugBinding(\.lanEnabled))
+            .toggleStyle(.ditto)
           Toggle("mDNS", isOn: debugBinding(\.mdnsEnabled))
+            .toggleStyle(.ditto)
             .disabled(!debugTransports.lanEnabled)
           Toggle("LAN multicast", isOn: debugBinding(\.multicastEnabled))
+            .toggleStyle(.ditto)
             .disabled(!debugTransports.lanEnabled)
           Toggle("AWDL", isOn: debugBinding(\.awdlEnabled))
+            .toggleStyle(.ditto)
         } header: {
           Text("Debug transports")
         } footer: {

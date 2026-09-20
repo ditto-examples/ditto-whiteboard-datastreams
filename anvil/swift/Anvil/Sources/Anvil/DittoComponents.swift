@@ -113,6 +113,61 @@ public struct AnvilBadge: View {
     }
 }
 
+/// A Ditto-branded switch: enabled controls use the citrus track with a black
+/// thumb in every appearance, instead of the platform's white switch thumb.
+public struct DittoSwitchStyle: ToggleStyle {
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> some View {
+        DittoSwitchStyleBody(configuration: configuration)
+    }
+}
+
+public extension ToggleStyle where Self == DittoSwitchStyle {
+    static var ditto: DittoSwitchStyle { DittoSwitchStyle() }
+}
+
+private struct DittoSwitchStyleBody: View {
+    let configuration: ToggleStyleConfiguration
+
+    @Environment(\.dittoColors) private var colors
+    @Environment(\.isEnabled) private var isEnabled
+
+    private var trackColor: Color {
+        guard isEnabled else { return colors.fillDisabled }
+        return configuration.isOn ? AnvilLightPalette.citrus600 : colors.surfaceSecondary
+    }
+
+    private var thumbColor: Color {
+        guard isEnabled else { return colors.foregroundDisabled }
+        return configuration.isOn ? AnvilLightPalette.neutral950 : colors.foregroundNormal
+    }
+
+    var body: some View {
+        Button {
+            configuration.isOn.toggle()
+        } label: {
+            HStack(spacing: 12) {
+                configuration.label
+                Spacer(minLength: 0)
+                Capsule()
+                    .fill(trackColor)
+                    .frame(width: 52, height: 32)
+                    .overlay(alignment: configuration.isOn ? .trailing : .leading) {
+                        Circle()
+                            .fill(thumbColor)
+                            .frame(width: 24, height: 24)
+                            .padding(4)
+                    }
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .accessibilityValue(configuration.isOn ? Text("On") : Text("Off"))
+        .animation(.snappy, value: configuration.isOn)
+    }
+}
+
 /// Surface container with Anvil's normal border and radius.
 public struct AnvilCard<Content: View>: View {
     private let content: Content

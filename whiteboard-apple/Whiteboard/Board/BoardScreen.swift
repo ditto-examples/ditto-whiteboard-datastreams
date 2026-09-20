@@ -185,9 +185,11 @@ struct BoardScreen: View {
       .navigationBarTitleDisplayMode(.inline)
     #endif
     .toolbar {
+      #if !os(macOS)
       ToolbarItem(placement: .principal) {
         BoardNavigationTitle()
       }
+      #endif
       #if os(iOS)
         if #available(iOS 27.1, *), !isExpanded {
           CompactBoardSystemToolbar(

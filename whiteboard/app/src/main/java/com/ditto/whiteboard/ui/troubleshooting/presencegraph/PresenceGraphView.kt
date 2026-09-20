@@ -85,6 +85,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
 import com.ditto.whiteboard.BuildConfig
 import com.ditto.whiteboard.R
+import com.ditto.whiteboard.ui.theme.dittoSwitchColors
 import com.ditto.whiteboard.transport.PeerDiagnostics
 import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.CoroutineScope
@@ -1211,6 +1212,7 @@ fun PresenceGraphView(
             Switch(
               checked = showDirectConnectedOnly,
               onCheckedChange = { onToggleDirectConnectedOnly() },
+              colors = dittoSwitchColors(),
               modifier = Modifier
                 .padding(start = 8.dp)
                 .semantics { contentDescription = directDescription },

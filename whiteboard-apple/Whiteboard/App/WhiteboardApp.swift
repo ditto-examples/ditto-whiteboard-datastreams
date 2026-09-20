@@ -22,6 +22,9 @@ struct WhiteboardApp: App {
     WindowGroup {
       DittoTheme {
         RootView(model: model)
+          #if os(macOS)
+          .background(MacTitlebarBrand())
+          #endif
       }
         #if os(macOS)
         .frame(minWidth: 360, minHeight: 480)

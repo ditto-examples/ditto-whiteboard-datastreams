@@ -818,7 +818,7 @@ struct PresenceViewerToolbarControls: View {
       if viewModel.controlsVisible {
         // Direct toggle.
         Toggle("Direct", isOn: $viewModel.showDirectConnectedOnly)
-          .toggleStyle(.switch)
+          .toggleStyle(.ditto)
           .font(.caption)
           .fixedSize()
           .help("Show only peers directly connected to this device")

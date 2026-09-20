@@ -24,6 +24,7 @@ import com.ditto.whiteboard.ui.board.ConnectedPeoplePane
 import com.ditto.whiteboard.ui.profile.ProfileSetupScreen
 import com.ditto.whiteboard.ui.theme.WhiteboardTheme
 import com.ditto.whiteboard.ui.troubleshooting.TroubleshootingScreen
+import com.ditto.whiteboard.ui.troubleshooting.presencegraph.PresenceGraphUiState
 import kotlinx.collections.immutable.persistentMapOf
 
 @Target(AnnotationTarget.FUNCTION, AnnotationTarget.ANNOTATION_CLASS)
@@ -124,6 +125,7 @@ fun TroubleshootingScreenshots() {
   WhiteboardTheme {
     TroubleshootingScreen(
       diagnostics = sampleDiagnostics(),
+      presenceGraphState = PresenceGraphUiState.Initializing,
       onBack = {},
     )
   }
@@ -142,8 +144,6 @@ private fun PreviewBoard(dark: Boolean = false) {
       onPreview = { _, _ -> },
       onCommit = { _, _, _ -> },
       onClear = {},
-      onEditProfile = {},
-      onTroubleshooting = {},
     )
   }
 }

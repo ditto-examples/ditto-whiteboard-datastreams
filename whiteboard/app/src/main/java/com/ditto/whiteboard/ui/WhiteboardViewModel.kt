@@ -13,7 +13,10 @@ import com.ditto.whiteboard.domain.WHITEBOARD_PALETTE
 import com.ditto.whiteboard.domain.isApprovedWhiteboardColor
 import com.ditto.whiteboard.domain.normalizeWhiteboardColor
 import com.ditto.whiteboard.transport.TransportDiagnostics
+import com.ditto.whiteboard.ui.troubleshooting.presencegraph.PresenceGraphRepository
+import com.ditto.whiteboard.ui.troubleshooting.presencegraph.PresenceGraphUiState
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -85,6 +88,24 @@ class WhiteboardViewModel(
       }
     }
   }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BoardUiState())
+
+  /**
+   * Raw presence-graph state for the presence viewer (Troubleshooting + the dedicated
+   * screen). Backed by a single [PresenceGraphRepository] per Ditto instance; emits
+   * [PresenceGraphUiState.Initializing] while no real transport exists (in-memory
+   * preview, or before the session is created).
+   */
+  private var presenceRepository: PresenceGraphRepository? = null
+  val presenceGraphState: StateFlow<PresenceGraphUiState> = sessionState.flatMapLatest { session ->
+    val ditto = session?.rawDitto
+    if (ditto == null) {
+      flowOf(PresenceGraphUiState.Initializing)
+    } else {
+      val repository = presenceRepository?.takeIf { it.ditto === ditto }
+        ?: PresenceGraphRepository(ditto, viewModelScope).also { presenceRepository = it }
+      repository.state
+    }
+  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PresenceGraphUiState.Initializing)
 
   private suspend fun session(): BoardSession =
     ownedSession ?: sessionMutex.withLock {

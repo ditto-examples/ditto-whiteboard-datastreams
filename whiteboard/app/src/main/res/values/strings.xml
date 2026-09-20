@@ -30,9 +30,10 @@
     <string name="board_remote_update_failed">An update from a nearby peer could not be applied. Collaboration continues; the board repairs itself on the next sync.</string>
 
     <string name="board_title">Ditto Whiteboard</string>
-    <string name="connected_people_description">Connected people, %1$d</string>
-    <string name="action_edit_profile">Edit profile</string>
-    <string name="action_troubleshooting">Troubleshooting</string>
+    <string name="sidebar_toggle">Show or hide the people, profile, and troubleshooting panel</string>
+    <string name="sidebar_people">People</string>
+    <string name="sidebar_profile">Profile</string>
+    <string name="sidebar_troubleshooting">Troubleshooting</string>
     <string name="action_clear_board">Clear board</string>
     <string name="clear_board_title">Clear the shared board?</string>
     <string name="clear_board_explanation">This removes every object for all connected collaborators and cannot be undone.</string>
@@ -106,11 +107,8 @@
     <string name="session_stopped">Session stopped</string>
     <string name="graph_direct">Direct</string>
     <string name="graph_full">Full</string>
-    <string name="select_peer_instruction">Select a peer to inspect its streams.</string>
     <string name="incompatible_protocol_versions">Incompatible protocol versions</string>
     <string name="peer_protocol">%1$s · protocol %2$d</string>
-    <string name="transport_bluetooth_le">Bluetooth LE</string>
-    <string name="transport_wifi_aware">Wi-Fi Aware</string>
     <string name="transport_lan">LAN</string>
     <string name="transport_cloud">Cloud</string>
     <string name="no_direct_transport">No direct transport</string>
@@ -129,12 +127,64 @@
     <string name="status_traffic_value">TX %1$.1f/s · RX %2$.1f/s</string>
     <string name="last_error">Last error</string>
 
-    <plurals name="presence_graph_description">
-        <item quantity="one">Presence graph with %1$d nearby peer. Drag to pan, pinch to zoom, or drag a peer.</item>
-        <item quantity="other">Presence graph with %1$d nearby peers. Drag to pan, pinch to zoom, or drag a peer.</item>
-    </plurals>
-    <string name="presence_peer_description">%1$s, nearby peer</string>
-    <string name="presence_peer_selected_description">%1$s, selected nearby peer</string>
-    <string name="action_select_peer">Inspect peer</string>
     <string name="action_reset_graph">Reset graph</string>
+
+    <string name="presence_graph_title">Presence graph</string>
+    <string name="action_presence_graph">Presence graph</string>
+    <string name="presence_focused_on">"Focused on "</string>
+    <string name="presence_focused_on_description">Focused on %1$s</string>
+    <string name="presence_exit_focus">Exit focus</string>
+    <string name="presence_legend_title">Connection Types</string>
+    <string name="presence_transport_bluetooth">Bluetooth</string>
+    <string name="presence_transport_p2p_wifi">P2P WiFi</string>
+    <string name="presence_transport_websocket">WebSocket</string>
+    <string name="presence_transport_multicast">Multicast</string>
+    <string name="presence_direct_connected_only">Direct Connected Only</string>
+    <string name="presence_zoom_level">Zoom level</string>
+    <string name="presence_toggle_controls">Toggle controls visibility</string>
+    <string name="presence_search_placeholder">Search peers…</string>
+    <string name="presence_search_clear">Clear peer search</string>
+    <string name="presence_search_description">Search peers in the mesh</string>
+    <string name="presence_search_no_matches">No peers match \"%1$s\"</string>
+    <string name="presence_this_device_cannot_focus">This device — cannot be focused</string>
+
+    <string name="presence_peer_details_description">Details for %1$s</string>
+    <string name="presence_detail_synthetic">Synthetic node — no peer record</string>
+    <string name="presence_detail_peer_key">Peer key</string>
+    <string name="presence_detail_os">OS</string>
+    <string name="presence_detail_sdk">Ditto SDK</string>
+    <string name="presence_detail_cloud_link">Cloud link</string>
+    <string name="presence_detail_compatible">Compatible</string>
+    <string name="presence_detail_peer_metadata">Peer metadata</string>
+    <string name="presence_detail_identity_metadata">Identity metadata</string>
+    <string name="presence_not_reported">not reported</string>
+    <string name="presence_not_yet_known">not yet known</string>
+    <string name="presence_cloud_none">None</string>
+    <string name="presence_yes">Yes</string>
+    <string name="presence_no">No</string>
+    <plurals name="presence_metadata_keys">
+        <item quantity="one">%1$d key</item>
+        <item quantity="other">%1$d keys</item>
+    </plurals>
+    <string name="presence_metadata_present">present</string>
+    <string name="presence_synced_to_commit">Synced to commit</string>
+    <string name="presence_last_update">Last update</string>
+    <string name="presence_sync_nothing_yet">nothing yet</string>
+    <string name="presence_sync_never">never</string>
+    <string name="presence_no_sync_session">No sync session — not directly connected</string>
+    <string name="presence_no_sync_session_explanation">Commit progress is only tracked for peers this device syncs with directly.</string>
+    <string name="presence_this_device">This device</string>
+    <string name="presence_this_device_explanation">Sync progress is tracked per remote peer, not for the local device.</string>
+    <string name="presence_just_now">Just now</string>
+    <plurals name="presence_minutes_ago">
+        <item quantity="one">%1$d min ago</item>
+        <item quantity="other">%1$d min ago</item>
+    </plurals>
+    <plurals name="presence_hours_ago">
+        <item quantity="one">%1$d hr ago</item>
+        <item quantity="other">%1$d hr ago</item>
+    </plurals>
+    <string name="presence_focus_this_peer">Focus this peer</string>
+    <string name="presence_whiteboard_link">Whiteboard link</string>
+    <string name="presence_wb_transports">Transports</string>
 </resources>

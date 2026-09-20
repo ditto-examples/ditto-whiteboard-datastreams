@@ -73,6 +73,9 @@ class BoardSession(
   private val reserveLamportAfter: suspend (Long) -> Long = { MAX_OPERATION_COUNTER },
 ) : AutoCloseable {
   val localPeerKey: String get() = transport.localPeerKey
+
+  /** The live Ditto instance for the presence-graph diagnostics UI, or null in-memory. */
+  val rawDitto: com.ditto.kotlin.Ditto? get() = transport.rawDitto
   private var clock: OperationClock? = null
   private var lamportCeiling: Long = MAX_OPERATION_COUNTER
   private val startMutex = Mutex()

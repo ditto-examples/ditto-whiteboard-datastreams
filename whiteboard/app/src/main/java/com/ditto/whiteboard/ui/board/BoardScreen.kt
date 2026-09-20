@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ViewSidebar
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Check
@@ -26,10 +27,9 @@ import androidx.compose.material.icons.filled.FormatColorFill
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.HorizontalRule
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Rectangle
 import androidx.compose.material.icons.filled.TextFields
-import androidx.compose.material.icons.filled.Troubleshoot
+import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -42,10 +42,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -72,6 +74,7 @@ import androidx.compose.ui.unit.dp
 import android.content.res.Configuration.UI_MODE_NIGHT_YES
 import com.ditto.whiteboard.domain.BoardObject
 import com.ditto.whiteboard.R
+import com.ditto.whiteboard.data.ProfileSettings
 import com.ditto.whiteboard.domain.BoardState
 import com.ditto.whiteboard.domain.DrawingTool
 import com.ditto.whiteboard.domain.LogicalPoint
@@ -83,6 +86,7 @@ import com.ditto.whiteboard.transport.TransportDiagnostics
 import com.ditto.whiteboard.ui.BoardUiState
 import com.ditto.whiteboard.ui.WHITEBOARD_COLORS
 import com.ditto.whiteboard.ui.theme.WhiteboardTheme
+import com.ditto.whiteboard.ui.troubleshooting.presencegraph.PresenceGraphUiState
 import kotlinx.collections.immutable.persistentMapOf
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -94,18 +98,18 @@ fun BoardScreen(
   onPreview: (String, List<LogicalPoint>) -> Unit,
   onCommit: (String, List<LogicalPoint>, String) -> Unit,
   onClear: () -> Unit,
-  onEditProfile: () -> Unit,
-  onTroubleshooting: () -> Unit,
   modifier: Modifier = Modifier,
+  onPresenceGraph: () -> Unit = {},
+  profile: ProfileSettings? = null,
+  onSaveProfile: (String, Int) -> Unit = { _, _ -> },
+  presenceGraphState: PresenceGraphUiState = PresenceGraphUiState.Initializing,
 ) {
   var confirmClear by rememberSaveable { mutableStateOf(false) }
   var textAnchor by rememberSaveable { mutableStateOf<Long?>(null) }
   var textGestureId by rememberSaveable { mutableStateOf<String?>(null) }
   var text by rememberSaveable { mutableStateOf("") }
-  var showPeople by rememberSaveable { mutableStateOf(false) }
-  val connectedCount = remember(state.board.profiles, state.diagnostics, state.colorArgb) {
-    state.connectedPeople().size
-  }
+  var showSidebar by rememberSaveable { mutableStateOf(false) }
+  var sidebarSection by rememberSaveable { mutableStateOf(SidebarSection.People) }
 
   BoxWithConstraints(modifier.fillMaxSize()) {
     // Account for Scaffold/top-system insets as well as six tools plus eight 48dp color targets.
@@ -117,24 +121,16 @@ fun BoardScreen(
         TopAppBar(
           title = { Text(stringResource(R.string.board_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
           actions = {
-            IconButton(onClick = { showPeople = !showPeople }) {
-              BadgedBox(badge = { Badge { Text(connectedCount.toString()) } }) {
-                Icon(
-                  Icons.Default.Groups,
-                  stringResource(R.string.connected_people_description, connectedCount),
-                )
-              }
-            }
-            IconButton(onClick = onEditProfile) {
-              Icon(Icons.Default.Person, stringResource(R.string.action_edit_profile))
-            }
-            IconButton(onClick = onTroubleshooting) {
-              Icon(Icons.Default.Troubleshoot, stringResource(R.string.action_troubleshooting))
+            IconButton(onClick = onPresenceGraph) {
+              Icon(Icons.Outlined.Hub, stringResource(R.string.action_presence_graph))
             }
             IconButton(
               onClick = { confirmClear = true },
               enabled = state.diagnostics.editingReady,
             ) { Icon(Icons.Default.DeleteSweep, stringResource(R.string.action_clear_board)) }
+            IconButton(onClick = { showSidebar = !showSidebar }) {
+              Icon(Icons.AutoMirrored.Filled.ViewSidebar, stringResource(R.string.sidebar_toggle))
+            }
           },
         )
       },
@@ -161,18 +157,43 @@ fun BoardScreen(
           },
           modifier = Modifier.weight(1f).fillMaxHeight(),
         )
-        if (expanded && showPeople) {
-          ConnectedPeoplePane(
-            state = state,
-            onClose = { showPeople = false },
-            expanded = true,
-          )
+        if (expanded && showSidebar) {
+          Surface(
+            modifier = Modifier.width(380.dp).fillMaxHeight(),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            tonalElevation = 2.dp,
+          ) {
+            BoardSidebarPanel(
+              state = state,
+              section = sidebarSection,
+              onSectionChange = { sidebarSection = it },
+              onDismiss = { showSidebar = false },
+              onSaveProfile = onSaveProfile,
+              profile = profile,
+              profileErrorMessage = state.errorMessage,
+              presenceGraphState = presenceGraphState,
+            )
+          }
         }
       }
     }
-    if (!expanded && showPeople) {
-      ModalBottomSheet(onDismissRequest = { showPeople = false }) {
-        ConnectedPeoplePane(state = state, onClose = { showPeople = false })
+    if (!expanded && showSidebar) {
+      // The unified panel is content-rich (profile form, troubleshooting graph), so open fully
+      // expanded instead of resting at the half-height anchor with the section clipped.
+      ModalBottomSheet(
+        onDismissRequest = { showSidebar = false },
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+      ) {
+        BoardSidebarPanel(
+          state = state,
+          section = sidebarSection,
+          onSectionChange = { sidebarSection = it },
+          onDismiss = { showSidebar = false },
+          onSaveProfile = onSaveProfile,
+          profile = profile,
+          profileErrorMessage = state.errorMessage,
+          presenceGraphState = presenceGraphState,
+        )
       }
     }
   }
@@ -443,8 +464,6 @@ private fun BoardScreenPreview() {
       onPreview = { _, _ -> },
       onCommit = { _, _, _ -> },
       onClear = {},
-      onEditProfile = {},
-      onTroubleshooting = {},
     )
   }
 }

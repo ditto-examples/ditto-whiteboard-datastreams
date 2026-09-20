@@ -20,7 +20,8 @@ protobuf = "4.35.1"
 protobufPlugin = "0.10.0"
 robolectric = "4.16.1"
 screenshot = "0.0.1-alpha15"
-ditto = { require = "[5.0.1,6.0.0)", prefer = "5.1.0" }
+# Pinned to a 5.2.0 weekly so the Android build matches the Swift 5.2.0-dev SDK used by whiteboard-apple (cross-platform interop).
+ditto = { require = "5.2.0-dev-weekly.20260910.2377" }
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }

@@ -1,0 +1,5 @@
+.build/
+Whiteboard.xcodeproj/
+Whiteboard/Generated/DittoCredentials+Generated.swift
+xcuserdata/
+DerivedData/

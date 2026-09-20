@@ -34,17 +34,14 @@ import com.ditto.whiteboard.ui.board.BoardScreen
 import com.ditto.whiteboard.NearbyPermissionPrompt
 import com.ditto.whiteboard.R
 import com.ditto.whiteboard.ui.profile.ProfileSetupScreen
-import com.ditto.whiteboard.ui.troubleshooting.TroubleshootingScreen
+import com.ditto.whiteboard.ui.troubleshooting.presencegraph.PresenceGraphScreen
 import kotlinx.serialization.Serializable
-
-@Serializable
-data class ProfileSetupRoute(val editing: Boolean = false) : NavKey
 
 @Serializable
 data object BoardRoute : NavKey
 
 @Serializable
-data object TroubleshootingRoute : NavKey
+data object PresenceGraphRoute : NavKey
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
@@ -57,6 +54,7 @@ internal fun WhiteboardApp(
 ) {
   val profileState by viewModel.profiles.state.collectAsStateWithLifecycle()
   val boardState by viewModel.uiState.collectAsStateWithLifecycle()
+  val presenceGraphState by viewModel.presenceGraphState.collectAsStateWithLifecycle()
   if (profileState.failure != null) {
     ProfileLoadError(onRetry = viewModel.profiles::retryLoad)
     return
@@ -127,29 +125,15 @@ internal fun WhiteboardApp(
           onPreview = viewModel::preview,
           onCommit = viewModel::commit,
           onClear = viewModel::clear,
-          onEditProfile = { show(ProfileSetupRoute(editing = true)) },
-          onTroubleshooting = { show(TroubleshootingRoute) },
+          onPresenceGraph = { show(PresenceGraphRoute) },
+          profile = profile,
+          onSaveProfile = { name, color -> viewModel.saveProfile(name, color, onSaved = {}) },
+          presenceGraphState = presenceGraphState,
         )
       }
-      entry<ProfileSetupRoute>(metadata = SupportingPaneSceneStrategy.supportingPane()) { route ->
-        ProfileSetupScreen(
-          existing = profile,
-          editing = route.editing,
-          errorMessage = boardState.errorMessage,
-          onSave = { name, color ->
-            viewModel.saveProfile(name, color) {
-              if (route.editing) {
-                backStack.removeLastOrNull()
-              }
-            }
-          },
-          onBack = {
-            if (route.editing) backStack.removeLastOrNull()
-          },
-        )
-      }
-      entry<TroubleshootingRoute>(metadata = SupportingPaneSceneStrategy.supportingPane()) {
-        TroubleshootingScreen(
+      entry<PresenceGraphRoute>(metadata = SupportingPaneSceneStrategy.supportingPane()) {
+        PresenceGraphScreen(
+          state = presenceGraphState,
           diagnostics = boardState.diagnostics,
           onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
         )

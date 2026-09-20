@@ -14,6 +14,7 @@ import com.ditto.kotlin.DittoReliability
 import com.ditto.kotlin.DittoSendStatus
 import com.ditto.kotlin.DittoStream
 import com.ditto.kotlin.PreviewDataStreams
+import com.ditto.whiteboard.data.DebugTransportSettings
 import com.ditto.kotlin.open
 import com.ditto.kotlin.transports.DittoSyncPermissions
 import com.ditto.whiteboard.domain.BOARD_ID
@@ -180,6 +181,7 @@ class DittoWhiteboardTransport(
   databaseId: String,
   offlineLicenseToken: String,
   parentScope: CoroutineScope,
+  private val debugTransports: DebugTransportSettings = DebugTransportSettings(context),
   // Injected so tests can pin work onto a controllable dispatcher instead of the real IO pool.
   private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : WhiteboardTransport {
@@ -191,6 +193,7 @@ class DittoWhiteboardTransport(
   ).apply { setOfflineOnlyLicenseToken(offlineLicenseToken) }
 
   override val localPeerKey: String = ditto.presence.graph.localPeer.peerKey
+  override val rawDitto: Ditto get() = ditto
   override val requiredPermissions: List<String> = DittoSyncPermissions(context).requiredPermissions()
   private val permissionReady = CompletableDeferred<Unit>()
   private val mutableEvents = MutableSharedFlow<TransportEvent>(extraBufferCapacity = 64)
@@ -629,15 +632,17 @@ class DittoWhiteboardTransport(
   }
 
   private fun configureTransports(context: Context) {
-    val hasBle = context.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)
+    val hasBle = context.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE) &&
+      debugTransports.bluetoothLeEnabled
     val hasWifiAware = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-      context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI_AWARE)
+      context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI_AWARE) &&
+      debugTransports.wifiAwareEnabled
     ditto.updateTransportConfig { config ->
       config.peerToPeer.bluetoothLe.enabled = hasBle
       config.peerToPeer.wifiAware.enabled = hasWifiAware
-      config.peerToPeer.lan.enabled = true
-      config.peerToPeer.lan.mdnsEnabled = true
-      config.peerToPeer.lan.multicastEnabled = false
+      config.peerToPeer.lan.enabled = debugTransports.lanEnabled
+      config.peerToPeer.lan.mdnsEnabled = debugTransports.mdnsEnabled
+      config.peerToPeer.lan.multicastEnabled = debugTransports.multicastEnabled
       config.listen.tcp.enabled = false
     }
   }

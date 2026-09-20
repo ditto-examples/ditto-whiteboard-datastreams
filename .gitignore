@@ -16,3 +16,6 @@
 CODE_REVIEW.md
 WHITEBOARD_PLAN.md
 Notes.md
+
+# 176MB locally built DittoSwift xcframework — rebuild via whiteboard-apple/scripts/build_dittoswift_xcframework.sh
+whiteboard-apple/Frameworks/

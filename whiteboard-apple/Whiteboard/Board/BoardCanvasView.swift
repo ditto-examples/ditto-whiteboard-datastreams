@@ -1,3 +1,4 @@
+import Anvil
 import SwiftUI
 import WhiteboardCore
 
@@ -429,6 +430,7 @@ struct BoardCanvasView: View {
 
 private struct ConnectivityBanner: View {
   let message: String
+  @Environment(\.dittoColors) private var colors
 
   var body: some View {
     Text(message)
@@ -438,7 +440,7 @@ private struct ConnectivityBanner: View {
       .padding(.horizontal, 12)
       .padding(.vertical, 8)
       .background(
-        WhiteboardTheme.tertiaryContainer.opacity(0.96),
+        colors.fillWarningSecondary.opacity(0.96),
         in: RoundedRectangle(cornerRadius: 12, style: .continuous)
       )
       .frame(maxWidth: 560)

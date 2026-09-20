@@ -46,6 +46,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -370,6 +371,11 @@ private fun ToolRail(
         onClick = { onTool(tool) },
         icon = { Icon(tool.icon, label) },
         label = { Text(label) },
+        colors = NavigationRailItemDefaults.colors(
+          selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+          selectedTextColor = MaterialTheme.colorScheme.onPrimary,
+          indicatorColor = MaterialTheme.colorScheme.primary,
+        ),
       )
     }
     Spacer(Modifier.weight(1f))
@@ -498,15 +504,20 @@ private fun CompactToolMenu(
   Box(modifier, contentAlignment = Alignment.Center) {
     IconButton(
       onClick = { expanded = true },
-      modifier = Modifier.semantics {
-        selected = isSelected
-        stateDescription = selectionState
-      },
+      modifier = Modifier
+        .background(
+          if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+          CircleShape,
+        )
+        .semantics {
+          selected = isSelected
+          stateDescription = selectionState
+        },
     ) {
       Icon(
         imageVector = icon,
         contentDescription = label,
-        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {

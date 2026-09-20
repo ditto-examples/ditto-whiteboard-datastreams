@@ -1,3 +1,4 @@
+import Anvil
 import SwiftUI
 import WhiteboardCore
 
@@ -60,6 +61,7 @@ func whiteboardColorName(_ colorArgb: Int32) -> String {
 struct ConnectedPeoplePane: View {
   let people: [ConnectedPerson]
   let onClose: () -> Void
+  @Environment(\.dittoColors) private var colors
 
   var body: some View {
     VStack(spacing: 0) {
@@ -97,12 +99,13 @@ struct ConnectedPeoplePane: View {
       .listStyle(.plain)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(WhiteboardTheme.surface)
+    .background(colors.surface)
   }
 }
 
 private struct ConnectedPersonRow: View {
   let person: ConnectedPerson
+  @Environment(\.dittoColors) private var colors
 
   private var resolvedName: String {
     if !person.displayName.isEmpty { return person.displayName }
@@ -121,7 +124,7 @@ private struct ConnectedPersonRow: View {
   var body: some View {
     HStack(spacing: 14) {
       Circle()
-        .fill(person.colorArgb.map(Color.init(argb:)) ?? WhiteboardTheme.surfaceVariant)
+        .fill(person.colorArgb.map(Color.init(argb:)) ?? colors.surfaceSecondary)
         .overlay {
           if person.colorArgb == nil {
             Image(systemName: "ellipsis")
@@ -149,7 +152,7 @@ private struct ConnectedPersonRow: View {
           .padding(.horizontal, 8)
           .padding(.vertical, 4)
           .background(
-            WhiteboardTheme.secondaryContainer,
+            colors.fillInfoSecondary,
             in: RoundedRectangle(cornerRadius: 6, style: .continuous)
           )
       }

@@ -1,3 +1,4 @@
+import Anvil
 import SwiftUI
 import WhiteboardCore
 
@@ -9,6 +10,7 @@ struct TroubleshootingScreen: View {
   /// supplies its own chrome) and shows the presence-graph link inline.
   var embedded: Bool = false
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.dittoColors) private var colors
   @State private var debugTransports = DebugTransportSettings.load()
   #if os(macOS)
   @Environment(\.openWindow) private var openWindow
@@ -50,7 +52,7 @@ struct TroubleshootingScreen: View {
           if let message = diagnostics.connectivityMessage {
             Text(message)
               .font(.footnote)
-              .foregroundStyle(WhiteboardTheme.tertiary)
+              .foregroundStyle(colors.foregroundWarning)
           }
         }
         Section {

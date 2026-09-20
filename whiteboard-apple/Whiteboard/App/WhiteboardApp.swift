@@ -1,4 +1,5 @@
 import Foundation
+import Anvil
 import SwiftUI
 import WhiteboardCore
 
@@ -19,8 +20,9 @@ struct WhiteboardApp: App {
 
   var body: some Scene {
     WindowGroup {
-      RootView(model: model)
-        .tint(WhiteboardTheme.primary)
+      DittoTheme {
+        RootView(model: model)
+      }
         #if os(macOS)
         .frame(minWidth: 360, minHeight: 480)
         #endif
@@ -34,8 +36,9 @@ struct WhiteboardApp: App {
 
     #if os(macOS)
     Window("Presence Graph", id: "presence-graph") {
-      PresenceViewerScreen(appModel: model)
-        .tint(WhiteboardTheme.primary)
+      DittoTheme {
+        PresenceViewerScreen(appModel: model)
+      }
         .frame(minWidth: 720, minHeight: 520)
     }
     .defaultSize(width: 1440, height: 960)
@@ -46,10 +49,11 @@ struct WhiteboardApp: App {
 
 struct RootView: View {
   let model: AppModel
+  @Environment(\.dittoColors) private var colors
 
   var body: some View {
     ZStack {
-      WhiteboardTheme.background.ignoresSafeArea()
+      colors.background.ignoresSafeArea()
       if model.startFailed {
         SessionStartErrorView(onRetry: model.retrySessionStart)
       } else if model.profile != nil {
@@ -69,6 +73,7 @@ struct RootView: View {
         }
       }
     }
+    .tint(colors.fillBrandPrimary)
     .task(id: model.profile) {
       if let profile = model.profile {
         FileHandle.standardError.write("DittoWhiteboardApp: startSession for profile '\(profile.displayName)'\n".data(using: .utf8)!)

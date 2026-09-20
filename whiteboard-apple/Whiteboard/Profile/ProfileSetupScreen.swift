@@ -1,3 +1,4 @@
+import Anvil
 import SwiftUI
 import WhiteboardCore
 
@@ -15,6 +16,7 @@ struct ProfileSetupScreen: View {
   @State private var attemptedSave = false
   @State private var saving = false
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.dittoColors) private var colors
 
   init(
     existing: ProfileSettings?,
@@ -87,7 +89,7 @@ struct ProfileSetupScreen: View {
                 .overlay {
                   Circle()
                     .stroke(
-                      color == colorArgb ? WhiteboardTheme.primary : Color.secondary.opacity(0.6),
+                      color == colorArgb ? colors.borderControlSelected : colors.borderNormal,
                       lineWidth: color == colorArgb ? 4 : 1
                     )
                 }

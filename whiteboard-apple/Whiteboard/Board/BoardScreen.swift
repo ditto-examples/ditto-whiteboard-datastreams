@@ -1,3 +1,4 @@
+import Anvil
 import SwiftUI
 import WhiteboardCore
 
@@ -34,6 +35,7 @@ extension DrawingTool {
 
 struct BoardScreen: View {
   let model: AppModel
+  @Environment(\.dittoColors) private var colors
 
   #if os(macOS)
   @Environment(\.openWindow) private var openWindow
@@ -174,6 +176,12 @@ struct BoardScreen: View {
     }
     .navigationTitle("Ditto Whiteboard")
     #if os(iOS)
+      // The Duo navigation bar floats over the deliberately dark canvas surround.
+      // Make that standard bar visible and use its dark system scheme so the
+      // title remains legible instead of becoming black over the canvas.
+      .toolbarBackground(colors.inverse, for: .navigationBar)
+      .toolbarBackground(.visible, for: .navigationBar)
+      .toolbarColorScheme(.dark, for: .navigationBar)
       .navigationBarTitleDisplayMode(.inline)
     #endif
     .toolbar {
@@ -476,6 +484,7 @@ private struct ToolRail: View {
   let selectedColorArgb: Int32
   let onSelectTool: (DrawingTool) -> Void
   let onSelectColor: (Int32) -> Void
+  @Environment(\.dittoColors) private var colors
 
   var body: some View {
     VStack(spacing: 0) {
@@ -492,7 +501,7 @@ private struct ToolRail: View {
     #endif
     .frame(width: 112)
     .frame(maxHeight: .infinity)
-    .background(WhiteboardTheme.surface)
+    .background(colors.surface)
     .accessibilityIdentifier("toolRail")
   }
 }
@@ -545,6 +554,8 @@ private struct ToolRailToolButton: View {
   let tool: DrawingTool
   let isSelected: Bool
   let action: () -> Void
+  @Environment(\.dittoColors) private var colors
+  @Environment(\.dittoIsDark) private var isDark
 
   var body: some View {
     Button(action: action) {
@@ -558,9 +569,13 @@ private struct ToolRailToolButton: View {
       }
       .frame(maxWidth: .infinity)
       .padding(.vertical, 6)
-      .foregroundStyle(isSelected ? WhiteboardTheme.primary : Color.secondary)
+      .foregroundStyle(
+        isSelected
+          ? (isDark ? colors.foregroundOnBrandPrimary : colors.foregroundOnFill)
+          : colors.foregroundSubtle
+      )
       .background(
-        isSelected ? WhiteboardTheme.secondaryContainer : Color.clear,
+        isSelected ? colors.fillControlSelected : Color.clear,
         in: RoundedRectangle(cornerRadius: 10, style: .continuous)
       )
     }
@@ -573,9 +588,12 @@ private struct ToolRailToolButton: View {
 
 private struct ZoomToolbarMenu: View {
   @Binding var viewport: BoardViewport
+  var showsZoomReadout = true
 
   var body: some View {
     Menu {
+      Text("Zoom: \(viewport.zoom.formatted(.percent.precision(.fractionLength(0))))")
+      Divider()
       Button {
         viewport = viewport.withZoom(viewport.zoom / zoomStep)
       } label: {
@@ -598,10 +616,14 @@ private struct ZoomToolbarMenu: View {
         Label("Fill screen", systemImage: "arrow.down.right.and.arrow.up.left")
       }
     } label: {
-      HStack(spacing: 4) {
+      if showsZoomReadout {
+        HStack(spacing: 4) {
+          Image(systemName: "magnifyingglass")
+          Text(viewport.zoom, format: .percent.precision(.fractionLength(0)))
+            .monospacedDigit()
+        }
+      } else {
         Image(systemName: "magnifyingglass")
-        Text(viewport.zoom, format: .percent.precision(.fractionLength(0)))
-          .monospacedDigit()
       }
     }
     .accessibilityLabel("Zoom controls")
@@ -851,9 +873,9 @@ private struct CompactBoardSystemToolbar: ToolbarContent {
 
   var body: some ToolbarContent {
     ToolbarItem(placement: .topBarTrailing) {
-      ZoomToolbarMenu(viewport: $viewport)
+      ZoomToolbarMenu(viewport: $viewport, showsZoomReadout: false)
     }
-    .axisBehavior(.horizontalOnly)
+    .axisBehavior(.verticalPreferred)
 
     ToolbarItem(placement: .bottomBar) {
       ToolbarColorMenu(
@@ -904,6 +926,7 @@ private struct CompactBoardSystemToolbar: ToolbarContent {
 private struct ToolbarColorMenu: View {
   let selectedColorArgb: Int32
   let onSelectColor: (Int32) -> Void
+  @Environment(\.dittoColors) private var colors
 
   var body: some View {
     Menu {
@@ -923,7 +946,7 @@ private struct ToolbarColorMenu: View {
       Circle()
         .fill(Color(argb: selectedColorArgb))
         .overlay {
-          Circle().stroke(Color.secondary.opacity(0.7), lineWidth: 1)
+          Circle().stroke(colors.borderNormal, lineWidth: 1)
         }
         .frame(width: 22, height: 22)
         .frame(width: 32, height: 32)
@@ -941,6 +964,8 @@ private struct ToolbarToolSelectionMenu: View {
   let tools: [DrawingTool]
   let selectedTool: DrawingTool
   let onSelectTool: (DrawingTool) -> Void
+  @Environment(\.dittoColors) private var colors
+  @Environment(\.dittoIsDark) private var isDark
 
   private var isSelected: Bool {
     tools.contains(selectedTool)
@@ -963,9 +988,13 @@ private struct ToolbarToolSelectionMenu: View {
       Image(systemName: displayedSystemImage)
         .font(.title3)
         .frame(width: 32, height: 32)
-        .foregroundStyle(isSelected ? WhiteboardTheme.primary : Color.secondary)
+        .foregroundStyle(
+          isSelected
+            ? (isDark ? colors.foregroundOnBrandPrimary : colors.foregroundOnFill)
+            : colors.foregroundSubtle
+        )
         .background(
-          WhiteboardTheme.secondaryContainer.opacity(isSelected ? 1 : 0),
+          colors.fillControlSelected.opacity(isSelected ? 1 : 0),
           in: Circle()
         )
     }
@@ -1020,6 +1049,7 @@ private struct CompactColorMenu: View {
   let onSelectColor: (Int32) -> Void
   let controlLength: CGFloat
   @State private var isPalettePresented = false
+  @Environment(\.dittoColors) private var colors
 
   var body: some View {
     Button {
@@ -1028,7 +1058,7 @@ private struct CompactColorMenu: View {
       Circle()
         .fill(Color(argb: selectedColorArgb))
         .overlay {
-          Circle().stroke(Color.secondary.opacity(0.7), lineWidth: 1)
+          Circle().stroke(colors.borderNormal, lineWidth: 1)
         }
         .frame(width: 22, height: 22)
         .frame(width: controlLength, height: controlLength)
@@ -1054,6 +1084,7 @@ private struct CompactColorMenu: View {
 private struct CompactColorPalette: View {
   let selectedColorArgb: Int32
   let onSelectColor: (Int32) -> Void
+  @Environment(\.dittoColors) private var colors
 
   private let columns = Array(repeating: GridItem(.fixed(44), spacing: 12), count: 4)
 
@@ -1067,7 +1098,7 @@ private struct CompactColorPalette: View {
             .fill(Color(argb: color))
             .overlay {
               Circle().stroke(
-                color == selectedColorArgb ? WhiteboardTheme.primary : Color.secondary.opacity(0.7),
+                color == selectedColorArgb ? colors.borderControlSelected : colors.borderNormal,
                 lineWidth: color == selectedColorArgb ? 3 : 1
               )
             }
@@ -1099,6 +1130,8 @@ private struct CompactToolSelectionMenu: View {
   let onSelectTool: (DrawingTool) -> Void
   let controlLength: CGFloat
   @State private var isPalettePresented = false
+  @Environment(\.dittoColors) private var colors
+  @Environment(\.dittoIsDark) private var isDark
 
   private var isSelected: Bool {
     tools.contains(selectedTool)
@@ -1115,9 +1148,13 @@ private struct CompactToolSelectionMenu: View {
       Image(systemName: displayedSystemImage)
         .font(.title3)
         .frame(width: controlLength, height: controlLength)
-        .foregroundStyle(isSelected ? WhiteboardTheme.primary : Color.secondary)
+        .foregroundStyle(
+          isSelected
+            ? (isDark ? colors.foregroundOnBrandPrimary : colors.foregroundOnFill)
+            : colors.foregroundSubtle
+        )
         .background(
-          WhiteboardTheme.secondaryContainer.opacity(isSelected ? 1 : 0),
+          colors.fillControlSelected.opacity(isSelected ? 1 : 0),
           in: Circle()
         )
     }
@@ -1182,6 +1219,7 @@ private struct ColorSwatch: View {
   let index: Int
   let isSelected: Bool
   let action: () -> Void
+  @Environment(\.dittoColors) private var colors
 
   var body: some View {
     Button(action: action) {
@@ -1191,7 +1229,7 @@ private struct ColorSwatch: View {
         .overlay {
           Circle()
             .stroke(
-              isSelected ? WhiteboardTheme.primary : Color.secondary.opacity(0.6),
+              isSelected ? colors.borderControlSelected : colors.borderNormal,
               lineWidth: isSelected ? 3 : 1
             )
         }

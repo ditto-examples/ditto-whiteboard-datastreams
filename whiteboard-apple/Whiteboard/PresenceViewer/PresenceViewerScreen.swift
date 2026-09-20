@@ -1,5 +1,6 @@
 import Foundation
 import SpriteKit
+import Anvil
 import SwiftUI
 import WhiteboardCore
 
@@ -13,6 +14,7 @@ struct PresenceViewerScreen: View {
   @State private var viewModel: ViewModel
   @State private var scene: PresenceNetworkScene?
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.dittoColors) private var colors
 
   init(viewModel: ViewModel) {
     _viewModel = State(initialValue: viewModel)
@@ -113,7 +115,8 @@ struct PresenceViewerScreen: View {
         PresenceViewerToolbarControls(viewModel: viewModel)
           .padding(.bottom, 12)
       }
-      .background(WhiteboardTheme.background)
+      .background(colors.background)
+      .tint(colors.fillBrandPrimary)
       .animation(.easeInOut(duration: 0.2), value: viewModel.focusedPeerName)
       .animation(.easeInOut(duration: 0.15), value: viewModel.detailPeerKey)
       #if os(macOS)

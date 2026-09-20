@@ -5,6 +5,8 @@ options:
     iOS: "17.0"
     macOS: "14.0"
 packages:
+  Anvil:
+    path: ../anvil/swift/Anvil
   WhiteboardCore:
     path: Packages/WhiteboardCore
   WhiteboardKit:
@@ -27,6 +29,8 @@ targets:
         excludes:
           - "Generated/.gitkeep"
     dependencies:
+      - package: Anvil
+        product: Anvil
       - package: WhiteboardCore
         product: WhiteboardCore
       - package: WhiteboardKit

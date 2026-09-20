@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pre-Android 8 fallback: a circular Ditto Yellow icon with the same mark. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFD0D600"
+        android:pathData="M54,12C77.2,12 96,30.8 96,54C96,77.2 77.2,96 54,96C30.8,96 12,77.2 12,54C12,30.8 30.8,12 54,12Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M47,34L53,34C58,34 61,37 61,42L61,46L55,46L55,42C55,40 54,40 52,40L47,40ZM64,74L70,74L70,79C70,81 71,82 73,82L78,82L78,88L72,88C67,88 64,85 64,80ZM29,24L41,24C45,24 47,26 47,30L47,42C47,46 45,48 41,48L29,48C25,48 23,46 23,42L23,30C23,26 25,24 29,24ZM48,43L66,43C71,43 74,46 74,51L74,69C74,74 71,77 66,77L48,77C43,77 40,74 40,69L40,51C40,46 43,43 48,43ZM75,70L83,70C86,70 88,72 88,75L88,83C88,86 86,88 83,88L75,88C72,88 70,86 70,83L70,75C70,72 72,70 75,70Z" />
+</vector>

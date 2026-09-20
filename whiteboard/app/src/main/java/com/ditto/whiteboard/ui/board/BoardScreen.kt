@@ -55,6 +55,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -112,11 +113,11 @@ fun BoardScreen(
   onSelectColor: (Int) -> Unit,
   onPreview: (String, List<LogicalPoint>) -> Unit,
   onCommit: (String, List<LogicalPoint>, String) -> Unit,
+  onClear: () -> Unit,
+  modifier: Modifier = Modifier,
   onCommitText: (String, List<LogicalPoint>, String, BoardTextFont, Int) -> Unit = { gestureId, points, text, _, _ ->
     onCommit(gestureId, points, text)
   },
-  onClear: () -> Unit,
-  modifier: Modifier = Modifier,
   onPresenceGraph: () -> Unit = {},
   profile: ProfileSettings? = null,
   onSaveProfile: (String, Int) -> Unit = { _, _ -> },
@@ -127,7 +128,7 @@ fun BoardScreen(
   var textGestureId by rememberSaveable { mutableStateOf<String?>(null) }
   var text by rememberSaveable { mutableStateOf("") }
   var textFont by rememberSaveable { mutableStateOf(DEFAULT_TEXT_FONT) }
-  var textSize by rememberSaveable { mutableStateOf(DEFAULT_TEXT_SIZE) }
+  var textSize by rememberSaveable { mutableIntStateOf(DEFAULT_TEXT_SIZE) }
   var showSidebar by rememberSaveable { mutableStateOf(false) }
   var sidebarSection by rememberSaveable { mutableStateOf(SidebarSection.People) }
 

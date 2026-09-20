@@ -50,9 +50,6 @@
     <string name="action_place_text">Place text</string>
     <string name="selected_tool">Selected tool</string>
     <string name="whiteboard_not_selected">Not selected</string>
-    <string name="more_tools_and_colors">More tools and colors</string>
-    <string name="selected_tool_more_options">%1$s, selected tool. More tools and colors</string>
-    <string name="drawing_color">Drawing color</string>
     <string name="compact_menu_color">Color</string>
     <string name="compact_menu_shapes">Shapes</string>
     <string name="compact_menu_text_and_tools">Text and tools</string>

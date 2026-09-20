@@ -27,7 +27,10 @@ final class AppModel {
   private(set) var startFailed = false
   private(set) var sessionAttached = false
   var actionError: String?
+  /// The remembered drawing tool. Hand navigation never replaces this selection.
   private(set) var selectedTool: DrawingTool = .pen
+  /// The mode currently driving canvas gestures; this may temporarily be Hand.
+  private(set) var activeTool: DrawingTool = .pen
   private(set) var selectedColorArgb: Int32 = whiteboardPalette[0]
 
   private var sessionInstance: BoardSession?
@@ -37,7 +40,18 @@ final class AppModel {
   private var desiredForeground = true
 
   var bannerMessage: String? {
-    actionError ?? sessionError ?? diagnostics.connectivityMessage
+    actionError ?? sessionError ?? boardBannerConnectivityMessage
+  }
+
+  /// A timed-out initial reconciliation is non-blocking: the board has already
+  /// enabled editing and the detail remains available in Transport. Keeping it
+  /// out of the canvas banner prevents a stale nearby peer from covering the
+  /// work surface with an error-looking message.
+  private var boardBannerConnectivityMessage: String? {
+    guard let message = diagnostics.connectivityMessage,
+      !message.hasPrefix("Initial nearby sync timed out")
+    else { return nil }
+    return message
   }
 
   init(
@@ -121,7 +135,10 @@ final class AppModel {
   }
 
   func selectTool(_ tool: DrawingTool) {
-    selectedTool = tool
+    activeTool = tool
+    if tool != .hand {
+      selectedTool = tool
+    }
   }
 
   func selectColor(_ colorArgb: Int32) {
@@ -132,17 +149,33 @@ final class AppModel {
   func preview(gestureId: String, points: [LogicalPoint]) {
     sessionInstance?.preview(
       gestureId: gestureId,
-      tool: selectedTool,
+      tool: activeTool,
       colorArgb: selectedColorArgb,
       points: points
     )
   }
 
-  func commit(gestureId: String, points: [LogicalPoint], text: String = "") {
+  func commit(
+    gestureId: String,
+    points: [LogicalPoint],
+    text: String = "",
+    textFont: BoardTextFont = defaultTextFont,
+    textSize: Int = defaultTextSize
+  ) {
     guard let session = sessionInstance else { return }
-    let tool = selectedTool
+    let tool = activeTool
     let color = selectedColorArgb
-    Task { await session.commit(tool: tool, colorArgb: color, points: points, text: text, gestureId: gestureId) }
+    Task {
+      await session.commit(
+        tool: tool,
+        colorArgb: color,
+        points: points,
+        text: text,
+        textFont: textFont,
+        textSize: textSize,
+        gestureId: gestureId
+      )
+    }
   }
 
   func clear() {

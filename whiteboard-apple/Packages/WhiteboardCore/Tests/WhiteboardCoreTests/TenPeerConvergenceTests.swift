@@ -74,10 +74,13 @@ private struct FakePeer {
           id: objectId, stamp: stamp, colorArgb: colorArgb, anchor: points[0], text: "text"
         )
       )
-    case .eraser:
-      Issue.record("commit(tool:) does not support the eraser")
-      throw WhiteboardCoreError.requirementFailed("eraser is not committable")
-    }
+      case .eraser:
+        Issue.record("commit(tool:) does not support the eraser")
+        throw WhiteboardCoreError.requirementFailed("eraser is not committable")
+      case .hand:
+        Issue.record("commit(tool:) does not support the local Hand navigation tool")
+        throw WhiteboardCoreError.requirementFailed("hand is not committable")
+      }
     let operation = BoardOperation.commit(
       BoardOperation.Commit(id: id, stamp: stamp, boardObject: object)
     )

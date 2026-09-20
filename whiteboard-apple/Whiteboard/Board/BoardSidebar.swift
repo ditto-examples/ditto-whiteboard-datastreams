@@ -2,7 +2,7 @@ import SwiftUI
 import WhiteboardCore
 
 /// The unified trailing panel (inspector on macOS/iPadOS, full-screen sheet on
-/// iPhone) hosting People / Profile / Troubleshooting behind one segmented
+/// iPhone) hosting People / Profile / Transport behind one segmented
 /// control, driven by the board's single sidebar toggle.
 enum BoardSidebarSection: String, CaseIterable, Identifiable {
   case people, profile, troubleshooting
@@ -11,7 +11,7 @@ enum BoardSidebarSection: String, CaseIterable, Identifiable {
     switch self {
     case .people: return "People"
     case .profile: return "Profile"
-    case .troubleshooting: return "Troubleshooting"
+    case .troubleshooting: return "Transport"
     }
   }
   var systemImage: String {
@@ -33,18 +33,7 @@ struct BoardSidebarPanel: View {
   var body: some View {
     NavigationStack {
       VStack(spacing: 0) {
-        Picker("Sidebar section", selection: $section) {
-          ForEach(BoardSidebarSection.allCases) { section in
-            Image(systemName: section.systemImage)
-              .accessibilityLabel(section.title)
-              .tag(section)
-          }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .accessibilityIdentifier("sidebarSectionPicker")
+        SidebarSectionPicker(selection: $section)
 
         Group {
           switch section {
@@ -58,7 +47,8 @@ struct BoardSidebarPanel: View {
               onSave: { name, color in
                 await model.saveProfile(displayName: name, colorArgb: color)
               },
-              onCancel: onDismiss
+              onCancel: onDismiss,
+              embedded: true
             )
           case .troubleshooting:
             TroubleshootingScreen(
@@ -75,5 +65,30 @@ struct BoardSidebarPanel: View {
       .navigationBarTitleDisplayMode(.inline)
       #endif
     }
+  }
+}
+
+private struct SidebarSectionPicker: View {
+  @Binding var selection: BoardSidebarSection
+
+  var body: some View {
+    Picker("Sidebar section", selection: $selection) {
+      ForEach(BoardSidebarSection.allCases) { section in
+        Text(section.title)
+          .tag(section)
+      }
+    }
+    .pickerStyle(.segmented)
+    .labelsHidden()
+    .frame(maxWidth: .infinity)
+    #if os(macOS)
+    .controlSize(.large)
+    .padding(.horizontal, 16)
+    .padding(.vertical, 12)
+    #else
+    .padding(.horizontal, 12)
+    .padding(.vertical, 8)
+    #endif
+    .accessibilityIdentifier("sidebarSectionPicker")
   }
 }

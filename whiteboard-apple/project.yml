@@ -53,6 +53,9 @@ targets:
         "CODE_SIGN_IDENTITY[sdk=iphoneos*]": "Apple Development"
         GENERATE_INFOPLIST_FILE: YES
         ENABLE_APP_SANDBOX: NO
+        # Keep the app code in the executable. The Xcode 26 Debug dylib launcher does not
+        # resolve embedded third-party frameworks when this simulator app starts.
+        ENABLE_DEBUG_DYLIB: NO
         ENABLE_TESTABILITY: YES
         SWIFT_EMIT_LOC_STRINGS: YES
         INFOPLIST_KEY_CFBundleDisplayName: "Ditto Whiteboard"

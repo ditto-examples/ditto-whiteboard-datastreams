@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -26,7 +27,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FormatColorFill
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.HorizontalRule
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material.icons.filled.Rectangle
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.outlined.Hub
@@ -76,6 +77,9 @@ import com.ditto.whiteboard.domain.BoardObject
 import com.ditto.whiteboard.R
 import com.ditto.whiteboard.data.ProfileSettings
 import com.ditto.whiteboard.domain.BoardState
+import com.ditto.whiteboard.domain.BoardTextFont
+import com.ditto.whiteboard.domain.DEFAULT_TEXT_FONT
+import com.ditto.whiteboard.domain.DEFAULT_TEXT_SIZE
 import com.ditto.whiteboard.domain.DrawingTool
 import com.ditto.whiteboard.domain.LogicalPoint
 import com.ditto.whiteboard.domain.ObjectId
@@ -89,6 +93,16 @@ import com.ditto.whiteboard.ui.theme.WhiteboardTheme
 import com.ditto.whiteboard.ui.troubleshooting.presencegraph.PresenceGraphUiState
 import kotlinx.collections.immutable.persistentMapOf
 
+private val drawingToolsInInterface = listOf(
+  DrawingTool.Pen,
+  DrawingTool.Line,
+  DrawingTool.Rectangle,
+  DrawingTool.Ellipse,
+  DrawingTool.Text,
+  DrawingTool.Hand,
+  DrawingTool.Eraser,
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BoardScreen(
@@ -97,6 +111,9 @@ fun BoardScreen(
   onSelectColor: (Int) -> Unit,
   onPreview: (String, List<LogicalPoint>) -> Unit,
   onCommit: (String, List<LogicalPoint>, String) -> Unit,
+  onCommitText: (String, List<LogicalPoint>, String, BoardTextFont, Int) -> Unit = { gestureId, points, text, _, _ ->
+    onCommit(gestureId, points, text)
+  },
   onClear: () -> Unit,
   modifier: Modifier = Modifier,
   onPresenceGraph: () -> Unit = {},
@@ -108,11 +125,13 @@ fun BoardScreen(
   var textAnchor by rememberSaveable { mutableStateOf<Long?>(null) }
   var textGestureId by rememberSaveable { mutableStateOf<String?>(null) }
   var text by rememberSaveable { mutableStateOf("") }
+  var textFont by rememberSaveable { mutableStateOf(DEFAULT_TEXT_FONT) }
+  var textSize by rememberSaveable { mutableStateOf(DEFAULT_TEXT_SIZE) }
   var showSidebar by rememberSaveable { mutableStateOf(false) }
   var sidebarSection by rememberSaveable { mutableStateOf(SidebarSection.People) }
 
   BoxWithConstraints(modifier.fillMaxSize()) {
-    // Account for Scaffold/top-system insets as well as six tools plus eight 48dp color targets.
+    // Account for Scaffold/top-system insets as well as seven tools plus eight 48dp color targets.
     // Short tablets/foldables keep the compact overflow toolbar so every action remains reachable.
     val expanded = maxWidth >= 840.dp && maxHeight >= 900.dp
     Scaffold(
@@ -153,7 +172,7 @@ fun BoardScreen(
               textAnchor = points.firstOrNull()?.packed
               textGestureId = gestureId
               text = ""
-            } else onCommit(gestureId, points, "")
+            } else if (state.tool != DrawingTool.Hand) onCommit(gestureId, points, "")
           },
           modifier = Modifier.weight(1f).fillMaxHeight(),
         )
@@ -222,20 +241,20 @@ fun BoardScreen(
       },
       title = { Text(stringResource(R.string.add_text_title)) },
       text = {
-        OutlinedTextField(
-          value = text,
-          onValueChange = { value ->
-            text = value.filterNot(Char::isISOControl).take(200)
-          },
-          label = { Text(stringResource(R.string.text_field_label)) },
-          singleLine = true,
+        TextStyleEditor(
+          text = text,
+          font = textFont,
+          size = textSize,
+          onTextChange = { value -> text = value.filterNot(Char::isISOControl).take(200) },
+          onFontChange = { textFont = it },
+          onSizeChange = { textSize = it },
         )
       },
       confirmButton = {
         Button(
           enabled = text.isNotBlank(),
           onClick = {
-            onCommit(checkNotNull(textGestureId), points, text.trim())
+            onCommitText(checkNotNull(textGestureId), points, text.trim(), textFont, textSize)
             textAnchor = null
             textGestureId = null
           },
@@ -258,6 +277,84 @@ private val Long.logicalPoint: LogicalPoint
   get() = LogicalPoint(x = (this shr 32).toInt(), y = toInt())
 
 @Composable
+private fun TextStyleEditor(
+  text: String,
+  font: BoardTextFont,
+  size: Int,
+  onTextChange: (String) -> Unit,
+  onFontChange: (BoardTextFont) -> Unit,
+  onSizeChange: (Int) -> Unit,
+) {
+  var fontMenuExpanded by remember { mutableStateOf(false) }
+  var sizeMenuExpanded by remember { mutableStateOf(false) }
+  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    OutlinedTextField(
+      value = text,
+      onValueChange = onTextChange,
+      label = { Text(stringResource(R.string.text_field_label)) },
+      modifier = Modifier.fillMaxWidth(),
+      minLines = 2,
+      maxLines = 4,
+    )
+    Box(Modifier.fillMaxWidth()) {
+      OutlinedTextField(
+        value = stringResource(font.labelRes()),
+        onValueChange = {},
+        label = { Text(stringResource(R.string.text_font_label)) },
+        modifier = Modifier.fillMaxWidth().clickable { fontMenuExpanded = true },
+        readOnly = true,
+      )
+      DropdownMenu(
+        expanded = fontMenuExpanded,
+        onDismissRequest = { fontMenuExpanded = false },
+      ) {
+        BoardTextFont.entries.forEach { option ->
+          DropdownMenuItem(
+            text = { Text(stringResource(option.labelRes())) },
+            onClick = {
+              onFontChange(option)
+              fontMenuExpanded = false
+            },
+          )
+        }
+      }
+    }
+    Box(Modifier.fillMaxWidth()) {
+      OutlinedTextField(
+        value = stringResource(R.string.text_size_points, size),
+        onValueChange = {},
+        label = { Text(stringResource(R.string.text_size_label)) },
+        modifier = Modifier.fillMaxWidth().clickable { sizeMenuExpanded = true },
+        readOnly = true,
+      )
+      DropdownMenu(
+        expanded = sizeMenuExpanded,
+        onDismissRequest = { sizeMenuExpanded = false },
+      ) {
+        textSizes.forEach { option ->
+          DropdownMenuItem(
+            text = { Text(stringResource(R.string.text_size_points, option)) },
+            onClick = {
+              onSizeChange(option)
+              sizeMenuExpanded = false
+            },
+          )
+        }
+      }
+    }
+  }
+}
+
+private val textSizes = listOf(24, 36, 48, 64, 80, 96)
+
+private fun BoardTextFont.labelRes(): Int = when (this) {
+  BoardTextFont.System -> R.string.text_font_system
+  BoardTextFont.Rounded -> R.string.text_font_rounded
+  BoardTextFont.Serif -> R.string.text_font_serif
+  BoardTextFont.Monospaced -> R.string.text_font_monospaced
+}
+
+@Composable
 private fun ToolRail(
   selected: DrawingTool,
   colorArgb: Int,
@@ -266,7 +363,7 @@ private fun ToolRail(
 ) {
   NavigationRail(Modifier.width(88.dp)) {
     Spacer(Modifier.height(8.dp))
-    DrawingTool.entries.forEach { tool ->
+    drawingToolsInInterface.forEach { tool ->
       val label = tool.localizedLabel()
       NavigationRailItem(
         selected = tool == selected,
@@ -276,8 +373,8 @@ private fun ToolRail(
       )
     }
     Spacer(Modifier.weight(1f))
-    WHITEBOARD_COLORS.forEachIndexed { index, color ->
-      ColorChoice(color, index, color == colorArgb, onColor)
+    WHITEBOARD_COLORS.forEach { color ->
+      ColorChoice(color, color == colorArgb, onColor)
     }
     Spacer(Modifier.height(8.dp))
   }
@@ -290,86 +387,61 @@ private fun CompactToolbar(
   onTool: (DrawingTool) -> Unit,
   onColor: (Int) -> Unit,
 ) {
-  var overflow by remember { mutableStateOf(false) }
-  val overflowTool = selectedTool.takeIf { it in DrawingTool.entries.drop(4) }
-  val overflowLabel = overflowTool?.localizedLabel()
-  val overflowDescription = if (overflowLabel != null) {
-    stringResource(R.string.selected_tool_more_options, overflowLabel)
-  } else {
-    stringResource(R.string.more_tools_and_colors)
-  }
-  val overflowStateDescription = if (overflowTool != null) {
-    overflowDescription
-  } else {
-    stringResource(R.string.whiteboard_not_selected)
-  }
   BottomAppBar {
-    DrawingTool.entries.take(4).forEach { tool ->
-      val isSelected = tool == selectedTool
-      val label = tool.localizedLabel()
-      val selectionState = stringResource(
-        if (isSelected) R.string.selected_tool else R.string.whiteboard_not_selected,
-      )
-      IconButton(
-        onClick = { onTool(tool) },
-        modifier = Modifier
-          .weight(1f)
-          .semantics {
-            selected = isSelected
-            stateDescription = selectionState
-          },
-      ) {
-        Icon(tool.icon, label, tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-      }
+    CompactColorMenu(
+      colorArgb = colorArgb,
+      onColor = onColor,
+      modifier = Modifier.weight(1f),
+    )
+    CompactToolMenu(
+      labelRes = R.string.compact_menu_shapes,
+      icon = Icons.Default.Rectangle,
+      tools = listOf(DrawingTool.Line, DrawingTool.Rectangle, DrawingTool.Ellipse),
+      selectedTool = selectedTool,
+      onTool = onTool,
+      modifier = Modifier.weight(1f),
+    )
+    CompactToolMenu(
+      labelRes = R.string.compact_menu_text_and_tools,
+      icon = Icons.Default.TextFields,
+      tools = listOf(DrawingTool.Pen, DrawingTool.Text, DrawingTool.Eraser, DrawingTool.Hand),
+      selectedTool = selectedTool,
+      onTool = onTool,
+      modifier = Modifier.weight(1f),
+    )
+  }
+}
+
+@Composable
+private fun CompactColorMenu(
+  colorArgb: Int,
+  onColor: (Int) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  var expanded by remember { mutableStateOf(false) }
+  val label = stringResource(R.string.compact_menu_color)
+  Box(modifier, contentAlignment = Alignment.Center) {
+    IconButton(onClick = { expanded = true }) {
+      Icon(Icons.Default.FormatColorFill, label, tint = Color(colorArgb))
     }
-    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-      IconButton(
-        onClick = { overflow = true },
-        modifier = Modifier.semantics {
-          selected = overflowTool != null
-          stateDescription = overflowStateDescription
-        },
+    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+      Column(
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
-        Icon(
-          overflowTool?.icon ?: Icons.Default.MoreVert,
-          overflowDescription,
-          tint = if (overflowTool != null) {
-            MaterialTheme.colorScheme.primary
-          } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-          },
-        )
-      }
-      DropdownMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
-        DrawingTool.entries.drop(4).forEach { tool ->
-          val label = tool.localizedLabel()
-          val isSelected = tool == selectedTool
-          DropdownMenuItem(
-            text = { Text(label) },
-            leadingIcon = { Icon(tool.icon, null) },
-            trailingIcon = {
-              if (isSelected) Icon(Icons.Default.Check, contentDescription = null)
-            },
-            onClick = { onTool(tool); overflow = false },
-            modifier = Modifier.semantics { selected = isSelected },
-          )
-        }
-        DropdownMenuItem(
-          text = { Text(stringResource(R.string.drawing_color)) },
-          leadingIcon = { Icon(Icons.Default.FormatColorFill, null, tint = Color(colorArgb)) },
-          onClick = {},
-          enabled = false,
-        )
-        WHITEBOARD_COLORS.forEachIndexed { index, color ->
-          val label = stringResource(
-            if (color == colorArgb) R.string.color_number_selected else R.string.color_number,
-            index + 1,
-          )
-          DropdownMenuItem(
-            text = { Text(label) },
-            leadingIcon = { Icon(Icons.Default.Circle, null, tint = Color(color)) },
-            onClick = { onColor(color); overflow = false },
-          )
+        WHITEBOARD_COLORS.chunked(4).forEach { row ->
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            row.forEach { color ->
+              PaletteColorSwatch(
+                color = color,
+                isSelected = color == colorArgb,
+                onClick = {
+                  onColor(color)
+                  expanded = false
+                },
+              )
+            }
+          }
         }
       }
     }
@@ -377,10 +449,90 @@ private fun CompactToolbar(
 }
 
 @Composable
-private fun ColorChoice(color: Int, index: Int, isSelected: Boolean, onColor: (Int) -> Unit) {
+private fun PaletteColorSwatch(
+  color: Int,
+  isSelected: Boolean,
+  onClick: () -> Unit,
+) {
+  val colorName = stringResource(whiteboardColorNameResource(color))
   val description = stringResource(
-    if (isSelected) R.string.color_number_selected else R.string.color_number,
-    index + 1,
+    if (isSelected) R.string.color_name_selected else R.string.color_name,
+    colorName,
+  )
+  Box(
+    modifier = Modifier
+      .size(48.dp)
+      .background(Color(color), CircleShape)
+      .border(
+        if (isSelected) 3.dp else 1.dp,
+        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+        CircleShape,
+      )
+      .clickable(onClick = onClick)
+      .semantics {
+        role = Role.RadioButton
+        selected = isSelected
+        contentDescription = description
+      },
+    contentAlignment = Alignment.Center,
+  ) {
+    if (isSelected) Icon(Icons.Default.Check, contentDescription = null, tint = Color.White)
+  }
+}
+
+@Composable
+private fun CompactToolMenu(
+  labelRes: Int,
+  icon: ImageVector,
+  tools: List<DrawingTool>,
+  selectedTool: DrawingTool,
+  onTool: (DrawingTool) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  var expanded by remember { mutableStateOf(false) }
+  val label = stringResource(labelRes)
+  val isSelected = selectedTool in tools
+  val selectionState = stringResource(
+    if (isSelected) R.string.selected_tool else R.string.whiteboard_not_selected,
+  )
+  Box(modifier, contentAlignment = Alignment.Center) {
+    IconButton(
+      onClick = { expanded = true },
+      modifier = Modifier.semantics {
+        selected = isSelected
+        stateDescription = selectionState
+      },
+    ) {
+      Icon(
+        imageVector = icon,
+        contentDescription = label,
+        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+      tools.forEach { tool ->
+        val toolLabel = tool.localizedLabel()
+        val toolSelected = tool == selectedTool
+        DropdownMenuItem(
+          text = { Text(toolLabel) },
+          leadingIcon = { Icon(tool.icon, null) },
+          trailingIcon = {
+            if (toolSelected) Icon(Icons.Default.Check, contentDescription = null)
+          },
+          onClick = { onTool(tool); expanded = false },
+          modifier = Modifier.semantics { selected = toolSelected },
+        )
+      }
+    }
+  }
+}
+
+@Composable
+private fun ColorChoice(color: Int, isSelected: Boolean, onColor: (Int) -> Unit) {
+  val colorName = stringResource(whiteboardColorNameResource(color))
+  val description = stringResource(
+    if (isSelected) R.string.color_name_selected else R.string.color_name,
+    colorName,
   )
   // The touch target is the full-width, 48dp-tall Box (meeting the accessibility minimum); the
   // 32dp swatch is only the visual affordance drawn inside it.
@@ -405,6 +557,18 @@ private fun ColorChoice(color: Int, index: Int, isSelected: Boolean, onColor: (I
   }
 }
 
+private fun whiteboardColorNameResource(color: Int): Int = when (color) {
+  WHITEBOARD_COLORS[0] -> R.string.color_charcoal
+  WHITEBOARD_COLORS[1] -> R.string.color_blue
+  WHITEBOARD_COLORS[2] -> R.string.color_green
+  WHITEBOARD_COLORS[3] -> R.string.color_red
+  WHITEBOARD_COLORS[4] -> R.string.color_purple
+  WHITEBOARD_COLORS[5] -> R.string.color_orange
+  WHITEBOARD_COLORS[6] -> R.string.color_teal
+  WHITEBOARD_COLORS[7] -> R.string.color_magenta
+  else -> R.string.color_custom
+}
+
 @Composable
 private fun DrawingTool.localizedLabel(): String = stringResource(
   when (this) {
@@ -413,6 +577,7 @@ private fun DrawingTool.localizedLabel(): String = stringResource(
     DrawingTool.Rectangle -> R.string.tool_rectangle
     DrawingTool.Ellipse -> R.string.tool_ellipse
     DrawingTool.Text -> R.string.tool_text
+    DrawingTool.Hand -> R.string.tool_hand
     DrawingTool.Eraser -> R.string.tool_eraser
   },
 )
@@ -423,6 +588,7 @@ private val DrawingTool.icon: ImageVector get() = when (this) {
   DrawingTool.Rectangle -> Icons.Default.Rectangle
   DrawingTool.Ellipse -> Icons.Default.Circle
   DrawingTool.Text -> Icons.Default.TextFields
+  DrawingTool.Hand -> Icons.Default.PanTool
   DrawingTool.Eraser -> Icons.Default.AutoFixHigh
 }
 

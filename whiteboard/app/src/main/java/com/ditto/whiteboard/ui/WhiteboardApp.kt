@@ -124,6 +124,7 @@ internal fun WhiteboardApp(
           onSelectColor = viewModel::selectColor,
           onPreview = viewModel::preview,
           onCommit = viewModel::commit,
+          onCommitText = viewModel::commitText,
           onClear = viewModel::clear,
           onPresenceGraph = { show(PresenceGraphRoute) },
           profile = profile,

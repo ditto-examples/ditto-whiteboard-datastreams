@@ -21,12 +21,14 @@ struct ProfileSetupScreen: View {
     editing: Bool,
     errorMessage: String?,
     onSave: @escaping (String, Int32) async -> Bool,
-    onCancel: @escaping () -> Void = {}
+    onCancel: @escaping () -> Void = {},
+    embedded: Bool = false
   ) {
     self.editing = editing
     self.errorMessage = errorMessage
     self.onSave = onSave
     self.onCancel = onCancel
+    self.embedded = embedded
     _name = State(initialValue: existing?.displayName ?? "")
     _colorArgb = State(initialValue: existing?.colorArgb ?? whiteboardPalette[1])
   }
@@ -116,7 +118,7 @@ struct ProfileSetupScreen: View {
       .frame(maxWidth: 520)
       .frame(maxWidth: .infinity)
     }
-    .navigationTitle(embedded ? "" : (editing ? "Edit profile" : "Welcome to Whiteboard"))
+    .navigationTitle(embedded ? "Profile" : (editing ? "Edit profile" : "Welcome to Whiteboard"))
     .toolbar {
       if editing, !embedded {
         ToolbarItem(placement: .cancellationAction) {

@@ -9,6 +9,15 @@ public let defaultTextSize: Int = 48
 public let maxOperationCounter: Int64 = 1 << 60
 public let maxRenderedBoardObjects: Int = 512
 
+public enum BoardTextFont: String, CaseIterable, Equatable, Hashable, Sendable {
+  case system
+  case rounded
+  case serif
+  case monospaced
+}
+
+public let defaultTextFont = BoardTextFont.system
+
 public struct LogicalPoint: Equatable, Hashable, Sendable, Codable {
   public var x: Int
   public var y: Int
@@ -189,10 +198,12 @@ public enum BoardObject: Equatable, Hashable, Sendable {
     public var anchor: LogicalPoint
     public var text: String
     public var size: Int
+    public var font: BoardTextFont
 
     public init(
       id: ObjectId, stamp: OperationStamp, colorArgb: Int32,
-      anchor: LogicalPoint, text: String, size: Int = defaultTextSize
+      anchor: LogicalPoint, text: String, size: Int = defaultTextSize,
+      font: BoardTextFont = defaultTextFont
     ) {
       self.id = id
       self.stamp = stamp
@@ -200,6 +211,7 @@ public enum BoardObject: Equatable, Hashable, Sendable {
       self.anchor = anchor
       self.text = text
       self.size = size
+      self.font = font
     }
   }
 
@@ -355,6 +367,9 @@ public enum DrawingTool: Int, Sendable, CaseIterable, Codable {
   case ellipse = 3
   case text = 4
   case eraser = 5
+  // Keep this last so existing live-preview wire values retain their meaning.
+  // Hand is local canvas navigation and is never sent over the wire.
+  case hand = 6
 }
 
 public struct LivePreview: Equatable, Sendable {

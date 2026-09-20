@@ -465,7 +465,7 @@ extension BoardObject.Ellipse: Codable {
 
 extension BoardObject.Text: Codable {
   private enum CodingKeys: String, CodingKey {
-    case id, stamp, colorArgb, anchor, text, size
+    case id, stamp, colorArgb, anchor, text, size, font
   }
 
   public func encode(to encoder: any Encoder) throws {
@@ -476,6 +476,7 @@ extension BoardObject.Text: Codable {
     try container.encode(anchor, forKey: .anchor)
     try container.encode(text, forKey: .text)
     try container.encode(size, forKey: .size)
+    try container.encode(font.rawValue, forKey: .font)
   }
 
   public init(from decoder: any Decoder) throws {
@@ -486,7 +487,10 @@ extension BoardObject.Text: Codable {
       colorArgb: try container.decode(Int32.self, forKey: .colorArgb),
       anchor: try container.decode(LogicalPoint.self, forKey: .anchor),
       text: try container.decode(String.self, forKey: .text),
-      size: try container.decodeIfPresent(Int.self, forKey: .size) ?? defaultTextSize
+      size: try container.decodeIfPresent(Int.self, forKey: .size) ?? defaultTextSize,
+      font: BoardTextFont(
+        rawValue: try container.decodeIfPresent(String.self, forKey: .font) ?? defaultTextFont.rawValue
+      ) ?? defaultTextFont
     )
   }
 }

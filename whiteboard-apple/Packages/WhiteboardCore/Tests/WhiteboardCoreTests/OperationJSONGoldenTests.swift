@@ -23,7 +23,7 @@ private let goldenFreehandJSON =
 private let goldenLineJSON =
   #"{"kind":"line","id":{"origin":{"senderPeerKey":"pkA","senderSequence":1},"fragmentDigest":""},"stamp":{"lamport":7,"peerKey":"pkB","senderSequence":3},"colorArgb":5,"width":6,"start":{"x":7,"y":8},"end":{"x":9,"y":10}}"#
 private let goldenTextJSON =
-  #"{"kind":"text","id":{"origin":{"senderPeerKey":"pkA","senderSequence":1},"fragmentDigest":""},"stamp":{"lamport":7,"peerKey":"pkB","senderSequence":3},"colorArgb":5,"anchor":{"x":11,"y":12},"text":"hi","size":48}"#
+  #"{"kind":"text","id":{"origin":{"senderPeerKey":"pkA","senderSequence":1},"fragmentDigest":""},"stamp":{"lamport":7,"peerKey":"pkB","senderSequence":3},"colorArgb":5,"anchor":{"x":11,"y":12},"text":"hi","size":48,"font":"system"}"#
 private let goldenCommitJSON =
   #"{"kind":"commit","id":{"senderPeerKey":"pkA","senderSequence":1},"stamp":{"lamport":7,"peerKey":"pkB","senderSequence":3},"boardObject":{"kind":"freehand","id":{"origin":{"senderPeerKey":"pkA","senderSequence":1},"fragmentDigest":""},"stamp":{"lamport":7,"peerKey":"pkB","senderSequence":3},"colorArgb":-14869728,"width":10,"points":[{"x":1,"y":2},{"x":3,"y":4}]},"gestureId":"g1"}"#
 private let goldenEraseJSON =
@@ -71,6 +71,21 @@ struct OperationJSONGoldenTests {
       size: 48
     )
     #expect(canonicalJSONString(BoardObject.text(text)) == goldenTextJSON)
+  }
+
+  @Test func textFontAndSizeRoundTrip() throws {
+    let text = BoardObject.Text(
+      id: goldenObjectId,
+      stamp: goldenStamp,
+      colorArgb: 5,
+      anchor: LogicalPoint(x: 11, y: 12),
+      text: "Styled",
+      size: 80,
+      font: .rounded
+    )
+    let encoded = canonicalJSONString(BoardObject.text(text))
+    let decoded = try OperationJSON.decoder.decode(BoardObject.self, from: Data(encoded.utf8))
+    #expect(decoded == .text(text))
   }
 
   @Test func commitMatchesGoldenBytes() {

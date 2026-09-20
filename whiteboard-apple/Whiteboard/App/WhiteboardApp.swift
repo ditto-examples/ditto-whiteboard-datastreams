@@ -1,16 +1,29 @@
+import Foundation
 import SwiftUI
 import WhiteboardCore
 
 @main
 struct WhiteboardApp: App {
-  @State private var model = AppModel.live()
+  @State private var model: AppModel
   @Environment(\.scenePhase) private var scenePhase
+
+  init() {
+    // Ditto's current tracing parser accepts boolean NO_COLOR values. Some
+    // developer launch environments use the conventional `NO_COLOR=1`, which
+    // would otherwise abort the native SDK before the first window appears.
+    if ProcessInfo.processInfo.environment["NO_COLOR"] == "1" {
+      setenv("NO_COLOR", "true", 1)
+    }
+    model = AppModel.live()
+  }
 
   var body: some Scene {
     WindowGroup {
       RootView(model: model)
         .tint(WhiteboardTheme.primary)
+        #if os(macOS)
         .frame(minWidth: 360, minHeight: 480)
+        #endif
         .onChange(of: scenePhase) { _, phase in
           model.setForeground(phase != .background)
         }

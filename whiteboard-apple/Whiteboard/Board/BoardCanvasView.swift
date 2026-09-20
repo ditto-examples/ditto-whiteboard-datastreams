@@ -5,12 +5,22 @@ import WhiteboardCore
   import AppKit
 #endif
 
-private let zoomStep = 1.25
 private let gridMinorStep = 120
 private let gridMajorStep = 480
 private let remotePreviewAlpha = 0.55
 private let localPreviewAlpha = 0.72
 private let maxActiveStrokePoints = 4_096
+
+private extension BoardTextFont {
+  var fontDesign: Font.Design {
+    switch self {
+    case .system: return .default
+    case .rounded: return .rounded
+    case .serif: return .serif
+    case .monospaced: return .monospaced
+    }
+  }
+}
 
 final class BoardRenderCache {
   private var cachedPaths: [ObjectId: (object: BoardObject, path: Path?)] = [:]
@@ -38,6 +48,7 @@ final class BoardRenderCache {
 }
 
 struct BoardCanvasView: View {
+  @Binding var viewport: BoardViewport
   let objects: [ObjectId: BoardObject]
   let previews: [LivePreview]
   let tool: DrawingTool
@@ -47,7 +58,6 @@ struct BoardCanvasView: View {
   let onPreview: (String, [LogicalPoint]) -> Void
   let onCommit: (String, [LogicalPoint]) -> Void
 
-  @State private var viewport = BoardViewport()
   @State private var viewportInitialized = false
   @State private var activePoints: [LogicalPoint] = []
   @State private var gestureId: String?
@@ -59,9 +69,6 @@ struct BoardCanvasView: View {
   var body: some View {
     boardCanvas
       .background(Color(argb: Int32(bitPattern: 0xFF25_2A2D)))
-      .overlay(alignment: .topTrailing) {
-        ZoomControl(viewport: $viewport)
-      }
       .overlay(alignment: .bottom) {
         if let bannerMessage {
           ConnectivityBanner(message: bannerMessage)
@@ -76,7 +83,9 @@ struct BoardCanvasView: View {
     .accessibilityElement()
     .accessibilityIdentifier("boardCanvas")
     .accessibilityLabel(
-      "Shared 3840 by 2160 drawing board. Draw with one finger or a stylus. Pan and zoom with two fingers."
+      tool == .hand
+        ? "Shared 3840 by 2160 drawing board. Hand tool active. Drag with one finger to pan and pinch to zoom."
+        : "Shared 3840 by 2160 drawing board. Draw with one finger or a stylus. Pan and zoom with two fingers."
     )
     .onGeometryChange(for: CGSize.self, of: { $0.size }) { newSize in
       let initialize = !viewportInitialized && newSize.width > 0 && newSize.height > 0
@@ -100,6 +109,10 @@ struct BoardCanvasView: View {
         )
         lastDragTranslation = value.translation
         if pinchStartZoom != nil || optionPanEngaged {
+          viewport = viewport.panBy(deltaX: Double(delta.width), deltaY: Double(delta.height))
+          return
+        }
+        if tool == .hand {
           viewport = viewport.panBy(deltaX: Double(delta.width), deltaY: Double(delta.height))
           return
         }
@@ -135,7 +148,7 @@ struct BoardCanvasView: View {
               }
             }
           }
-        default:
+        case .line, .rectangle, .ellipse, .text:
           if activePoints.isEmpty {
             activePoints = [point, point]
           } else if activePoints.count == 1 {
@@ -143,6 +156,8 @@ struct BoardCanvasView: View {
           } else {
             activePoints[1] = point
           }
+        case .hand:
+          return
         }
         onPreview(gestureId, activePoints)
       }
@@ -303,7 +318,7 @@ struct BoardCanvasView: View {
     case .text(let text):
       context.draw(
         Text(text.text)
-          .font(.system(size: Double(text.size)))
+          .font(.system(size: Double(text.size), design: text.font.fontDesign))
           .foregroundStyle(color),
         at: CGPoint(x: text.anchor.x, y: text.anchor.y),
         anchor: .bottomLeading
@@ -366,6 +381,8 @@ struct BoardCanvasView: View {
         ),
         with: .color(color.opacity(alpha))
       )
+    case .hand:
+      return
     }
   }
 
@@ -407,48 +424,6 @@ struct BoardCanvasView: View {
       width: Double(abs(end.x - start.x)),
       height: Double(abs(end.y - start.y))
     )
-  }
-}
-
-private struct ZoomControl: View {
-  @Binding var viewport: BoardViewport
-
-  var body: some View {
-    HStack(spacing: 2) {
-      Button {
-        viewport = viewport.withZoom(viewport.zoom / zoomStep)
-      } label: {
-        Image(systemName: "minus.magnifyingglass")
-          .frame(width: 32, height: 32)
-      }
-      .accessibilityLabel("Zoom out")
-      .accessibilityIdentifier("zoomOutButton")
-      Text("\(Int((viewport.zoom * 100).rounded()))%")
-        .font(.callout)
-        .monospacedDigit()
-        .frame(minWidth: 44)
-      Button {
-        viewport = viewport.withZoom(viewport.zoom * zoomStep)
-      } label: {
-        Image(systemName: "plus.magnifyingglass")
-          .frame(width: 32, height: 32)
-      }
-      .accessibilityLabel("Zoom in")
-      .accessibilityIdentifier("zoomInButton")
-      Button("Fit") {
-        viewport = viewport.withZoom(1)
-      }
-      .accessibilityIdentifier("fitButton")
-      Button("Fill") {
-        viewport = viewport.withZoom(viewport.fillZoom())
-      }
-      .accessibilityIdentifier("fillButton")
-    }
-    .buttonStyle(.borderless)
-    .padding(.horizontal, 10)
-    .padding(.vertical, 4)
-    .background(.regularMaterial, in: Capsule())
-    .padding(12)
   }
 }
 

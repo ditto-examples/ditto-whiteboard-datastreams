@@ -151,6 +151,7 @@ public enum WhiteboardProtocol {
     _ preview: LivePreview, sequence: Int64, senderSessionId: String
   ) throws -> Data {
     try require((1...maxProtocolCounter).contains(sequence))
+    try require(preview.tool != .hand, "Hand is a local navigation tool")
     try require(!senderSessionId.isBlankKotlin && senderSessionId.utf16.count <= maxGestureIdLength)
     try require(!preview.gestureId.isBlankKotlin && preview.gestureId.utf16.count <= maxGestureIdLength)
     try require(isApprovedWhiteboardColor(preview.colorArgb), "Live color is not approved")
@@ -208,6 +209,8 @@ public enum WhiteboardProtocol {
         return .invalid("Invalid live gesture id")
       } else if tool == nil {
         return .invalid("Unknown drawing tool")
+      } else if tool == .hand {
+        return .invalid("Hand is a local navigation tool")
       } else if !isApprovedWhiteboardColor(envelope.preview.colorArgb) {
         return .invalid("Live color is not approved")
       } else if !(2...(maxLivePoints * 2)).contains(envelope.preview.coordinateDeltas.count)
@@ -481,6 +484,7 @@ public func requireValidOperation(
       )
     case .text(let text):
       try require((1...WhiteboardProtocol.maxStrokeWidth).contains(text.size))
+      try require(BoardTextFont.allCases.contains(text.font), "Unsupported text font")
       try require((1...WhiteboardProtocol.maxTextLength).contains(text.text.utf16.count))
       try require(!text.text.containsISOControl, "Text contains control characters")
       try requireInBounds(text.anchor)

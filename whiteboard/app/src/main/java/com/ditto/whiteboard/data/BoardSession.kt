@@ -5,6 +5,9 @@ import com.ditto.whiteboard.domain.BoardObject
 import com.ditto.whiteboard.domain.BoardOperation
 import com.ditto.whiteboard.domain.BoardReducer
 import com.ditto.whiteboard.domain.BoardState
+import com.ditto.whiteboard.domain.BoardTextFont
+import com.ditto.whiteboard.domain.DEFAULT_TEXT_FONT
+import com.ditto.whiteboard.domain.DEFAULT_TEXT_SIZE
 import com.ditto.whiteboard.domain.DrawingTool
 import com.ditto.whiteboard.domain.LivePreview
 import com.ditto.whiteboard.domain.LogicalPoint
@@ -211,6 +214,7 @@ class BoardSession(
     points: List<LogicalPoint>,
   ) {
     if (points.isEmpty()) return
+    if (tool == DrawingTool.Hand) return
     if (!isApprovedWhiteboardColor(colorArgb)) return
     if (!transport.diagnostics.value.editingReady) return
     val preview = LivePreview(
@@ -234,9 +238,12 @@ class BoardSession(
     colorArgb: Int,
     points: List<LogicalPoint>,
     text: String = "",
+    textFont: BoardTextFont = DEFAULT_TEXT_FONT,
+    textSize: Int = DEFAULT_TEXT_SIZE,
     gestureId: String = UUID.randomUUID().toString(),
   ) {
     if (points.isEmpty()) return
+    if (tool == DrawingTool.Hand) return
     if (!ensureEditingReady()) return
     if (!isApprovedWhiteboardColor(colorArgb)) return
     if (tool == DrawingTool.Text && text.isBlank()) {
@@ -274,8 +281,17 @@ class BoardSession(
         DrawingTool.Line -> BoardObject.Line(objectId, stamp, colorArgb, start = clampedPoints.first(), end = clampedPoints.last())
         DrawingTool.Rectangle -> BoardObject.Rectangle(objectId, stamp, colorArgb, start = clampedPoints.first(), end = clampedPoints.last())
         DrawingTool.Ellipse -> BoardObject.Ellipse(objectId, stamp, colorArgb, start = clampedPoints.first(), end = clampedPoints.last())
-        DrawingTool.Text -> BoardObject.Text(objectId, stamp, colorArgb, anchor = clampedPoints.first(), text = text.take(200))
+        DrawingTool.Text -> BoardObject.Text(
+          objectId,
+          stamp,
+          colorArgb,
+          anchor = clampedPoints.first(),
+          text = text.take(200),
+          size = textSize,
+          font = textFont,
+        )
         DrawingTool.Eraser -> error("Handled above")
+        DrawingTool.Hand -> error("Hand is a local navigation tool")
       }
       BoardOperation.Commit(id, stamp, boardObject, gestureId)
     }

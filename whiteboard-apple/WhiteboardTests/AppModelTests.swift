@@ -88,6 +88,10 @@ struct AppModelTests {
     model.selectTool(.eraser)
     #expect(model.selectedTool == .eraser)
 
+    model.selectTool(.hand)
+    #expect(model.activeTool == .hand)
+    #expect(model.selectedTool == .eraser)
+
     model.selectColor(whiteboardPalette[5])
     #expect(model.selectedColorArgb == whiteboardPalette[5])
 
@@ -107,6 +111,18 @@ struct AppModelTests {
 
     model.actionError = nil
     #expect(model.bannerMessage == "local preview reason")
+  }
+
+  @Test func `non-blocking initial sync timeout stays in Transport diagnostics`() async {
+    let model = makeModel(
+      reason: "Initial nearby sync timed out. Editing is available, but an unreachable peer may be stale."
+    )
+
+    model.startSession(displayName: "Ada", colorArgb: whiteboardPalette[0])
+
+    #expect(await waitFor { model.sessionAttached })
+    #expect(model.diagnostics.connectivityMessage?.hasPrefix("Initial nearby sync timed out") == true)
+    #expect(model.bannerMessage == nil)
   }
 
   @Test func `failed session start latches and retry clears it`() async {

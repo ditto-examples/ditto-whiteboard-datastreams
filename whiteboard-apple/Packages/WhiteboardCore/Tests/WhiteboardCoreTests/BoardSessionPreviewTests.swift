@@ -73,6 +73,20 @@ struct BoardSessionPreviewTest {
     #expect(previews["peer-local"] == nil)
   }
 
+  @Test func handNavigationIsNotSentAsALivePreview() async throws {
+    let transport = FakeTransport(localPeerKey: "peer-local")
+    let session = try await startedSession(transport)
+
+    session.preview(
+      gestureId: "gesture-hand",
+      tool: .hand,
+      colorArgb: Int32(bitPattern: 0xFF0057B8),
+      points: [LogicalPoint(x: 10, y: 10), LogicalPoint(x: 20, y: 20)]
+    )
+
+    #expect(transport.recordedLive.isEmpty)
+  }
+
   @Test func remotePreviewIsAddedToPreviewsMap() async throws {
     let transport = FakeTransport(localPeerKey: "peer-local")
     let session = try await startedSession(transport)

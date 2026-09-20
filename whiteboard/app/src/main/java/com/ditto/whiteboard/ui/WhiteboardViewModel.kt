@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.ditto.whiteboard.data.BoardSession
 import com.ditto.whiteboard.data.ProfileRepository
 import com.ditto.whiteboard.domain.BoardState
+import com.ditto.whiteboard.domain.BoardTextFont
+import com.ditto.whiteboard.domain.DEFAULT_TEXT_FONT
+import com.ditto.whiteboard.domain.DEFAULT_TEXT_SIZE
 import com.ditto.whiteboard.domain.DrawingTool
 import com.ditto.whiteboard.domain.LivePreview
 import com.ditto.whiteboard.domain.LogicalPoint
@@ -180,7 +183,22 @@ class WhiteboardViewModel(
   fun preview(gestureId: String, points: List<LogicalPoint>) =
     sessionState.value?.preview(gestureId, selectedTool.value, selectedColor.value, points)
   fun commit(gestureId: String, points: List<LogicalPoint>, text: String = "") =
-    sessionState.value?.commit(selectedTool.value, selectedColor.value, points, text, gestureId)
+    commitText(gestureId, points, text, DEFAULT_TEXT_FONT, DEFAULT_TEXT_SIZE)
+  fun commitText(
+    gestureId: String,
+    points: List<LogicalPoint>,
+    text: String,
+    textFont: BoardTextFont,
+    textSize: Int,
+  ) = sessionState.value?.commit(
+    selectedTool.value,
+    selectedColor.value,
+    points,
+    text,
+    textFont,
+    textSize,
+    gestureId,
+  )
   fun clear() = sessionState.value?.clear()
 
   class Factory(

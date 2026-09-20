@@ -6,6 +6,7 @@ import com.ditto.whiteboard.domain.BOARD_WIDTH
 import com.ditto.whiteboard.domain.BoardOperation
 import com.ditto.whiteboard.domain.BoardObject
 import com.ditto.whiteboard.domain.BoardState
+import com.ditto.whiteboard.domain.BoardTextFont
 import com.ditto.whiteboard.domain.DrawingTool
 import com.ditto.whiteboard.domain.LivePreview
 import com.ditto.whiteboard.domain.LogicalPoint
@@ -176,6 +177,7 @@ object WhiteboardProtocol {
 
   fun encodeLive(preview: LivePreview, sequence: Long, senderSessionId: String): ByteArray {
     require(sequence in 1..MAX_PROTOCOL_COUNTER)
+    require(preview.tool != DrawingTool.Hand) { "Hand is a local navigation tool" }
     require(senderSessionId.isNotBlank() && senderSessionId.length <= MAX_GESTURE_ID_LENGTH)
     require(preview.gestureId.isNotBlank() && preview.gestureId.length <= MAX_GESTURE_ID_LENGTH)
     require(isApprovedWhiteboardColor(preview.colorArgb)) { "Live color is not approved" }
@@ -226,6 +228,8 @@ object WhiteboardProtocol {
         envelope.preview.gestureId.length > MAX_GESTURE_ID_LENGTH ->
         ProtocolDecodeResult.Invalid("Invalid live gesture id")
       envelope.preview.tool !in DrawingTool.entries.indices -> ProtocolDecodeResult.Invalid("Unknown drawing tool")
+      DrawingTool.entries[envelope.preview.tool] == DrawingTool.Hand ->
+        ProtocolDecodeResult.Invalid("Hand is a local navigation tool")
       !isApprovedWhiteboardColor(envelope.preview.colorArgb) ->
         ProtocolDecodeResult.Invalid("Live color is not approved")
       envelope.preview.coordinateDeltasCount !in 2..(MAX_LIVE_POINTS * 2) ||
@@ -488,6 +492,7 @@ internal fun requireValidOperation(
       }
       is BoardObject.Text -> {
         require(size in 1..MAX_STROKE_WIDTH)
+        require(font in BoardTextFont.entries) { "Unsupported text font" }
         require(text.length in 1..MAX_TEXT_LENGTH)
         require(text.none(Char::isISOControl)) { "Text contains control characters" }
         anchor.requireInBounds()

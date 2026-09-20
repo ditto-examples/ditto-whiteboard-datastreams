@@ -19,6 +19,20 @@ const val MAX_OPERATION_COUNTER: Long = 1L shl 60
 const val MAX_RENDERED_BOARD_OBJECTS: Int = 512
 
 @Serializable
+enum class BoardTextFont {
+  @SerialName("system")
+  System,
+  @SerialName("rounded")
+  Rounded,
+  @SerialName("serif")
+  Serif,
+  @SerialName("monospaced")
+  Monospaced,
+}
+
+val DEFAULT_TEXT_FONT: BoardTextFont = BoardTextFont.System
+
+@Serializable
 data class LogicalPoint(val x: Int, val y: Int) {
   fun clamped(): LogicalPoint = copy(x = x.coerceIn(0, BOARD_WIDTH), y = y.coerceIn(0, BOARD_HEIGHT))
 }
@@ -113,6 +127,7 @@ sealed interface BoardObject {
     val anchor: LogicalPoint,
     val text: String,
     val size: Int = DEFAULT_TEXT_SIZE,
+    val font: BoardTextFont = DEFAULT_TEXT_FONT,
   ) : BoardObject
 }
 
@@ -173,7 +188,17 @@ data class BoardState(
   val renderCapacityReachedSinceClear: Boolean = false,
 )
 
-enum class DrawingTool { Pen, Line, Rectangle, Ellipse, Text, Eraser }
+enum class DrawingTool {
+  Pen,
+  Line,
+  Rectangle,
+  Ellipse,
+  Text,
+  Eraser,
+  // Keep this last so existing live-preview wire values retain their meaning.
+  // Hand is local canvas navigation and is never sent over the wire.
+  Hand,
+}
 
 data class LivePreview(
   val peerKey: String,

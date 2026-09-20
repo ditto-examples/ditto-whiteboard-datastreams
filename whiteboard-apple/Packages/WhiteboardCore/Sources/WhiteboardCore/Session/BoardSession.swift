@@ -213,6 +213,7 @@ public actor BoardSession {
     points: [LogicalPoint]
   ) {
     if points.isEmpty { return }
+    if tool == .hand { return }
     guard isApprovedWhiteboardColor(colorArgb) else { return }
     guard transport.currentDiagnostics.editingReady else { return }
     let preview = LivePreview(
@@ -231,9 +232,12 @@ public actor BoardSession {
     colorArgb: Int32,
     points: [LogicalPoint],
     text: String = "",
+    textFont: BoardTextFont = defaultTextFont,
+    textSize: Int = defaultTextSize,
     gestureId: String = UUID().uuidString
   ) {
     if points.isEmpty { return }
+    if tool == .hand { return }
     guard ensureEditingReady() else { return }
     guard isApprovedWhiteboardColor(colorArgb) else { return }
     if tool == .text && text.isBlankKotlin {
@@ -314,11 +318,15 @@ public actor BoardSession {
             stamp: stamp,
             colorArgb: colorArgb,
             anchor: clampedPoints.first!,
-            text: String(text.prefix(200))
+            text: String(text.prefix(200)),
+            size: textSize,
+            font: textFont
           )
         )
       case .eraser:
         preconditionFailure("Handled above")
+      case .hand:
+        preconditionFailure("Hand is a local navigation tool")
       }
       return .commit(
         BoardOperation.Commit(id: id, stamp: stamp, boardObject: boardObject, gestureId: gestureId)

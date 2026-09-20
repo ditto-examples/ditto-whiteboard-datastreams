@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import com.ditto.whiteboard.domain.BoardState
+import com.ditto.whiteboard.domain.DrawingTool
 import com.ditto.whiteboard.domain.UserProfile
 import com.ditto.whiteboard.transport.PeerDiagnostics
 import com.ditto.whiteboard.transport.TransportDiagnostics
@@ -129,6 +130,40 @@ class WhiteboardScreensTest {
     composeTestRule.onNodeWithText("Fill").assertIsDisplayed()
     composeTestRule.onNodeWithText("Fit").performClick()
     composeTestRule.onNodeWithText("100%").assertIsDisplayed()
+  }
+
+  @Test
+  fun compactToolbarGroupsColorsShapesAndAllTools() {
+    var selectedTool: DrawingTool? = null
+    var selectedColor: Int? = null
+    composeTestRule.setContent {
+      WhiteboardTheme {
+        BoardScreen(
+          state = BoardUiState(),
+          onSelectTool = { selectedTool = it },
+          onSelectColor = { selectedColor = it },
+          onPreview = { _, _ -> },
+          onCommit = { _, _, _ -> },
+          onClear = {},
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithContentDescription("Color").performClick()
+    composeTestRule.onNodeWithContentDescription("Green").performClick()
+    composeTestRule.runOnIdle { assertEquals(WHITEBOARD_COLORS[2], selectedColor) }
+
+    composeTestRule.onNodeWithContentDescription("Shapes").performClick()
+    composeTestRule.onNodeWithText("Rectangle").performClick()
+    composeTestRule.runOnIdle { assertEquals(DrawingTool.Rectangle, selectedTool) }
+
+    composeTestRule.onNodeWithContentDescription("Text and tools").performClick()
+    composeTestRule.onNodeWithText("Eraser").performClick()
+    composeTestRule.runOnIdle { assertEquals(DrawingTool.Eraser, selectedTool) }
+
+    composeTestRule.onNodeWithContentDescription("Text and tools").performClick()
+    composeTestRule.onNodeWithText("Hand").performClick()
+    composeTestRule.runOnIdle { assertEquals(DrawingTool.Hand, selectedTool) }
   }
 
   @Test
@@ -282,7 +317,7 @@ class WhiteboardScreensTest {
 
   @Test
   @Config(sdk = [35], qualifiers = "w900dp-h500dp")
-  fun shortWideLayoutKeepsEveryColorReachableInOverflow() {
+  fun shortWideLayoutKeepsEveryColorReachableInColorMenu() {
     composeTestRule.setContent {
       WhiteboardTheme {
         BoardScreen(
@@ -297,13 +332,13 @@ class WhiteboardScreensTest {
       }
     }
 
-    composeTestRule.onNodeWithContentDescription("More tools and colors").performClick()
-    composeTestRule.onNodeWithText("Color 8").fetchSemanticsNode()
+    composeTestRule.onNodeWithContentDescription("Color").performClick()
+    composeTestRule.onNodeWithContentDescription("Magenta").fetchSemanticsNode()
   }
 
   @Test
   @Config(sdk = [35], qualifiers = "w900dp-h800dp")
-  fun mediumHeightTabletAlsoKeepsPaletteInReachableOverflow() {
+  fun mediumHeightTabletAlsoKeepsPaletteInReachableColorMenu() {
     composeTestRule.setContent {
       WhiteboardTheme {
         BoardScreen(
@@ -318,7 +353,7 @@ class WhiteboardScreensTest {
       }
     }
 
-    composeTestRule.onNodeWithContentDescription("More tools and colors").performClick()
-    composeTestRule.onNodeWithText("Color 8").fetchSemanticsNode()
+    composeTestRule.onNodeWithContentDescription("Color").performClick()
+    composeTestRule.onNodeWithContentDescription("Magenta").fetchSemanticsNode()
   }
 }

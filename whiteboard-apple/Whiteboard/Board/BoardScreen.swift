@@ -223,7 +223,7 @@ struct BoardScreen: View {
             Button {
               showSidebar.toggle()
             } label: {
-              Label("Sidebar", systemImage: "sidebar.trailing")
+              Label("Inspector", systemImage: "sidebar.trailing")
             }
             .accessibilityIdentifier("sidebarToggleButton")
           }
@@ -247,7 +247,7 @@ struct BoardScreen: View {
           Button {
             showSidebar.toggle()
           } label: {
-            Label("Sidebar", systemImage: "sidebar.trailing")
+            Label("Inspector", systemImage: "sidebar.trailing")
           }
           .accessibilityIdentifier("sidebarToggleButton")
         }
@@ -894,7 +894,7 @@ private struct CompactBoardSystemToolbar: ToolbarContent {
       }
       .disabled(!editingEnabled)
       Button(action: onToggleSidebar) {
-        Label("Sidebar", systemImage: "sidebar.trailing")
+        Label("Inspector", systemImage: "sidebar.trailing")
       }
     }
   }
@@ -1222,7 +1222,7 @@ private struct BoardActionsMenu: View {
       }
       .disabled(!editingEnabled)
       Button(action: onToggleSidebar) {
-        Label("Sidebar", systemImage: "sidebar.trailing")
+        Label("Inspector", systemImage: "sidebar.trailing")
       }
     } label: {
       Label("Board actions", systemImage: "ellipsis.circle")

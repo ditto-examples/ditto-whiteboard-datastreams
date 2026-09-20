@@ -54,6 +54,7 @@ targets:
         SDKROOT: auto
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: 3T2VMFZPPQ
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         "CODE_SIGN_IDENTITY[sdk=iphoneos*]": "Apple Development"
         GENERATE_INFOPLIST_FILE: YES
         ENABLE_APP_SANDBOX: NO

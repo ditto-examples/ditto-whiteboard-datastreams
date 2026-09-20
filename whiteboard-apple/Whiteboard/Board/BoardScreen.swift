@@ -36,6 +36,7 @@ extension DrawingTool {
 struct BoardScreen: View {
   let model: AppModel
   @Environment(\.dittoColors) private var colors
+  @Environment(\.dittoIsDark) private var isDark
 
   #if os(macOS)
   @Environment(\.openWindow) private var openWindow
@@ -174,17 +175,19 @@ struct BoardScreen: View {
         }
       }
     }
-    .navigationTitle("Ditto Whiteboard")
+    .navigationTitle("Whiteboard")
     #if os(iOS)
-      // The Duo navigation bar floats over the deliberately dark canvas surround.
-      // Make that standard bar visible and use its dark system scheme so the
-      // title remains legible instead of becoming black over the canvas.
-      .toolbarBackground(colors.inverse, for: .navigationBar)
+      // Use the semantic surface rather than `inverse`: in Anvil's dark tier
+      // `inverse` is deliberately light, which made the iOS title bar white.
+      .toolbarBackground(colors.surface, for: .navigationBar)
       .toolbarBackground(.visible, for: .navigationBar)
-      .toolbarColorScheme(.dark, for: .navigationBar)
+      .toolbarColorScheme(isDark ? .dark : .light, for: .navigationBar)
       .navigationBarTitleDisplayMode(.inline)
     #endif
     .toolbar {
+      ToolbarItem(placement: .principal) {
+        BoardNavigationTitle()
+      }
       #if os(iOS)
         if #available(iOS 27.1, *), !isExpanded {
           CompactBoardSystemToolbar(
@@ -335,6 +338,25 @@ struct BoardScreen: View {
       textSize: textSize
     )
     textDraft = nil
+  }
+}
+
+/// Keeps the Ditto wordmark sharp, localized to the title bar, and adaptive to
+/// the active appearance. The asset catalog supplies its dark and light marks.
+private struct BoardNavigationTitle: View {
+  var body: some View {
+    HStack(spacing: 7) {
+      Image("DittoLogotype")
+        .resizable()
+        .scaledToFit()
+        .frame(height: 17)
+        .accessibilityHidden(true)
+      Text("Whiteboard")
+        .font(.headline)
+    }
+    .fixedSize()
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("Ditto Whiteboard")
   }
 }
 

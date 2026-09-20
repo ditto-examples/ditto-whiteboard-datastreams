@@ -159,6 +159,8 @@ struct BoardScreen: View {
             onSelectTool: model.selectTool,
             onSelectColor: model.selectColor
           )
+        } else if #available(iOS 27.1, *) {
+          EmptyView()
         } else {
           CompactToolbar(
             selectedTool: model.activeTool,
@@ -176,7 +178,19 @@ struct BoardScreen: View {
     #endif
     .toolbar {
       #if os(iOS)
-        if usesCollapsedNavigationActions {
+        if #available(iOS 27.1, *), !isExpanded {
+          CompactBoardSystemToolbar(
+            viewport: $viewport,
+            selectedTool: model.activeTool,
+            selectedColorArgb: model.selectedColorArgb,
+            onSelectTool: model.selectTool,
+            onSelectColor: model.selectColor,
+            editingEnabled: model.diagnostics.editingReady,
+            onShowPresence: { showPresenceViewer = true },
+            onClear: { confirmClear = true },
+            onToggleSidebar: { showSidebar.toggle() }
+          )
+        } else if usesCollapsedNavigationActions {
           ToolbarItem(placement: .topBarTrailing) {
             ZoomToolbarMenu(viewport: $viewport)
           }
@@ -818,6 +832,152 @@ private struct CompactToolbarFallback: View {
     .background(.bar)
   }
 }
+
+#if os(iOS)
+/// Uses standard toolbar placements. iPhone Duo moves these controls into the
+/// lower portion of its vertical shared bar; other compact iPhones keep the
+/// same content in a horizontal bottom toolbar.
+@available(iOS 27.1, *)
+private struct CompactBoardSystemToolbar: ToolbarContent {
+  @Binding var viewport: BoardViewport
+  let selectedTool: DrawingTool
+  let selectedColorArgb: Int32
+  let onSelectTool: (DrawingTool) -> Void
+  let onSelectColor: (Int32) -> Void
+  let editingEnabled: Bool
+  let onShowPresence: () -> Void
+  let onClear: () -> Void
+  let onToggleSidebar: () -> Void
+
+  var body: some ToolbarContent {
+    ToolbarItem(placement: .topBarTrailing) {
+      ZoomToolbarMenu(viewport: $viewport)
+    }
+    .axisBehavior(.horizontalOnly)
+
+    ToolbarItem(placement: .bottomBar) {
+      ToolbarColorMenu(
+        selectedColorArgb: selectedColorArgb,
+        onSelectColor: onSelectColor
+      )
+    }
+    .axisBehavior(.verticalPreferred)
+
+    ToolbarItem(placement: .bottomBar) {
+      ToolbarToolSelectionMenu(
+        title: "Shapes",
+        systemImage: "square.on.circle",
+        tools: [.line, .rectangle, .ellipse],
+        selectedTool: selectedTool,
+        onSelectTool: onSelectTool
+      )
+    }
+    .axisBehavior(.verticalPreferred)
+
+    ToolbarItem(placement: .bottomBar) {
+      ToolbarToolSelectionMenu(
+        title: "Text and tools",
+        systemImage: "long.text.page.and.pencil",
+        tools: [.pen, .text, .eraser, .hand],
+        selectedTool: selectedTool,
+        onSelectTool: onSelectTool
+      )
+    }
+    .axisBehavior(.verticalPreferred)
+
+    ToolbarOverflowMenu {
+      Button(action: onShowPresence) {
+        Label("Presence graph", systemImage: "dot.radiowaves.left.and.right")
+      }
+      Button(role: .destructive, action: onClear) {
+        Label("Clear board", systemImage: "trash")
+      }
+      .disabled(!editingEnabled)
+      Button(action: onToggleSidebar) {
+        Label("Sidebar", systemImage: "sidebar.trailing")
+      }
+    }
+  }
+}
+
+@available(iOS 27.1, *)
+private struct ToolbarColorMenu: View {
+  let selectedColorArgb: Int32
+  let onSelectColor: (Int32) -> Void
+
+  var body: some View {
+    Menu {
+      ForEach(whiteboardPalette, id: \.self) { color in
+        Button {
+          onSelectColor(color)
+        } label: {
+          Label {
+            Text(whiteboardColorName(color))
+          } icon: {
+            Circle()
+              .fill(Color(argb: color))
+          }
+        }
+      }
+    } label: {
+      Circle()
+        .fill(Color(argb: selectedColorArgb))
+        .overlay {
+          Circle().stroke(Color.secondary.opacity(0.7), lineWidth: 1)
+        }
+        .frame(width: 22, height: 22)
+        .frame(width: 32, height: 32)
+    }
+    .accessibilityLabel("Color")
+    .accessibilityValue(whiteboardColorName(selectedColorArgb))
+    .accessibilityIdentifier("colorMenu")
+  }
+}
+
+@available(iOS 27.1, *)
+private struct ToolbarToolSelectionMenu: View {
+  let title: String
+  let systemImage: String
+  let tools: [DrawingTool]
+  let selectedTool: DrawingTool
+  let onSelectTool: (DrawingTool) -> Void
+
+  private var isSelected: Bool {
+    tools.contains(selectedTool)
+  }
+
+  private var displayedSystemImage: String {
+    isSelected ? selectedTool.systemImage : systemImage
+  }
+
+  var body: some View {
+    Menu {
+      ForEach(tools, id: \.self) { tool in
+        Button {
+          onSelectTool(tool)
+        } label: {
+          Label(tool.label, systemImage: tool.systemImage)
+        }
+      }
+    } label: {
+      Image(systemName: displayedSystemImage)
+        .font(.title3)
+        .frame(width: 32, height: 32)
+        .foregroundStyle(isSelected ? WhiteboardTheme.primary : Color.secondary)
+        .background(
+          WhiteboardTheme.secondaryContainer.opacity(isSelected ? 1 : 0),
+          in: Circle()
+        )
+    }
+    .accessibilityLabel(title)
+    .accessibilityValue(isSelected ? "\(selectedTool.label), selected" : "No selected tool")
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
+    .accessibilityIdentifier(
+      tools == [.line, .rectangle, .ellipse] ? "shapesMenu" : "textAndToolsMenu"
+    )
+  }
+}
+#endif
 
 private struct CompactToolbarMenus: View {
   let selectedTool: DrawingTool

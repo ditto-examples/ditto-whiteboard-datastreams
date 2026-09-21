@@ -37,6 +37,22 @@ private func makeModel(
   }
 }
 
+@Test
+func legacyLANDiscoveryDefaultMigratesOnceAndPreservesLaterUserChoice() {
+  let suiteName = "DebugTransportSettingsTests.\(UUID().uuidString)"
+  let defaults = UserDefaults(suiteName: suiteName)!
+  defer { defaults.removePersistentDomain(forName: suiteName) }
+
+  // This is the value stored by the old default, not an explicit user choice.
+  defaults.set(false, forKey: "debugTransports.multicast")
+  #expect(DebugTransportSettings.load(from: defaults).multicastEnabled)
+
+  var userDisabled = DebugTransportSettings.default
+  userDisabled.multicastEnabled = false
+  userDisabled.save(to: defaults)
+  #expect(!DebugTransportSettings.load(from: defaults).multicastEnabled)
+}
+
 @MainActor
 struct AppModelTests {
   @Test func `profile starts empty and save publishes it`() async {

@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import WhiteboardCore
-import WhiteboardKit
+@testable import WhiteboardKit
 import DittoSwift
 
 // License token from DittoSwiftTests/Helpers.swift (expires 2029-09-04). If activation starts
@@ -67,6 +67,20 @@ private func makeOperation(senderPeerKey: String, senderSequence: Int64) -> Boar
 
 private func makeProfile(peerKey: String, displayName: String) throws -> UserProfile {
   try UserProfile(peerKey: peerKey, displayName: displayName, colorArgb: defaultWhiteboardColor)
+}
+
+@Test
+func appleLANDiscoveryIsFullyEnabledByDefault() throws {
+  // The Ditto Rust core clap-parses NO_COLOR when initializing logging and panics on the "1"
+  // injected by SwiftPM for piped test output.
+  unsetenv("NO_COLOR")
+  let transport = try DittoWhiteboardTransport(credentials: makeCredentials(databaseID: UUID().uuidString))
+  defer { transport.close() }
+
+  let lan = transport.ditto.transportConfig.peerToPeer.lan
+  #expect(lan.isEnabled)
+  #expect(lan.isMDNSEnabled)
+  #expect(lan.isMulticastEnabled)
 }
 
 private struct ConnectedPair {

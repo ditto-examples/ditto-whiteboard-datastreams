@@ -28,4 +28,27 @@ struct PeerAdmissionTest {
     let discovered = (1...maxConnectedPeers).map { "a-\($0)" }
     #expect(admittedPeerKeys(localPeerKey: "z-local", discoveredPeerKeys: discovered).isEmpty)
   }
+
+  @Test func peerTransportAttributionIncludesOnlyDirectPresenceEdges() {
+    let connections = [
+      PresenceConnection(peer1: "android", peer2: "iphone-duo", transport: "Bluetooth LE"),
+      PresenceConnection(peer1: "iphone-duo", peer2: "ui-tester", transport: "P2P WiFi"),
+      PresenceConnection(peer1: "ui-tester", peer2: "android", transport: "LAN"),
+    ]
+
+    #expect(
+      directPresenceTransports(
+        localPeerKey: "android",
+        remotePeerKey: "iphone-duo",
+        connections: connections
+      ) == ["Bluetooth LE"]
+    )
+    #expect(
+      directPresenceTransports(
+        localPeerKey: "android",
+        remotePeerKey: "ui-tester",
+        connections: connections
+      ) == ["LAN"]
+    )
+  }
 }

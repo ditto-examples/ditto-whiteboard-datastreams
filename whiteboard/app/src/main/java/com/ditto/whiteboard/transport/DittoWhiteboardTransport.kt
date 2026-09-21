@@ -855,7 +855,11 @@ class DittoWhiteboardTransport(
               )
             }
           }
-          val connectionNames = peer.connections.map { it.connectionType.name }.toSet()
+          val connectionNames = directPresenceTransports(
+            localPeerKey = localPeerKey,
+            remotePeerKey = peer.peerKey,
+            connections = connections,
+          )
           val metadata = peer.peerMetadata.toMap()
           val knownProfile = knownLog.profile(peer.peerKey)
           updatePeer(peer.peerKey) { current ->

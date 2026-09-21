@@ -13,7 +13,7 @@ struct DebugTransportSettings: Sendable {
     bluetoothLEEnabled: true,
     lanEnabled: true,
     mdnsEnabled: true,
-    multicastEnabled: false,
+    multicastEnabled: true,
     awdlEnabled: true
   )
 
@@ -22,10 +22,18 @@ struct DebugTransportSettings: Sendable {
     static let lan = "debugTransports.lan"
     static let mdns = "debugTransports.mdns"
     static let multicast = "debugTransports.multicast"
+    static let lanDiscoveryDefaultV2 = "debugTransports.lanDiscoveryDefaultV2"
     static let awdl = "debugTransports.awdl"
   }
 
   static func load(from defaults: UserDefaults = .standard) -> DebugTransportSettings {
+    // Before v2, the default disabled ordinary IP-multicast *discovery* even while LAN was
+    // enabled. Correct that legacy default once; users can still turn the debug setting off
+    // afterward and their explicit choice is retained.
+    if !defaults.bool(forKey: Key.lanDiscoveryDefaultV2) {
+      defaults.set(true, forKey: Key.multicast)
+      defaults.set(true, forKey: Key.lanDiscoveryDefaultV2)
+    }
     func read(_ key: String, fallback: Bool) -> Bool {
       defaults.object(forKey: key) as? Bool ?? fallback
     }
@@ -33,7 +41,7 @@ struct DebugTransportSettings: Sendable {
       bluetoothLEEnabled: read(Key.ble, fallback: true),
       lanEnabled: read(Key.lan, fallback: true),
       mdnsEnabled: read(Key.mdns, fallback: true),
-      multicastEnabled: read(Key.multicast, fallback: false),
+      multicastEnabled: read(Key.multicast, fallback: true),
       awdlEnabled: read(Key.awdl, fallback: true)
     )
   }

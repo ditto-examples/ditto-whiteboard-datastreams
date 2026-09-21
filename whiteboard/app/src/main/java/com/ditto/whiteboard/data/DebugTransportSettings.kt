@@ -12,6 +12,17 @@ class DebugTransportSettings(context: Context) {
   private val prefs: SharedPreferences =
     context.applicationContext.getSharedPreferences("whiteboard_debug_transports", Context.MODE_PRIVATE)
 
+  init {
+    // Before v2, the default disabled ordinary IP-multicast *discovery* even while LAN was
+    // enabled. Correct that legacy default once; later user changes remain authoritative.
+    if (!prefs.getBoolean(KEY_LAN_DISCOVERY_DEFAULT_V2, false)) {
+      prefs.edit {
+        putBoolean(KEY_MULTICAST, true)
+        putBoolean(KEY_LAN_DISCOVERY_DEFAULT_V2, true)
+      }
+    }
+  }
+
   var bluetoothLeEnabled: Boolean
     get() = prefs.getBoolean(KEY_BLE, true)
     set(value) {
@@ -37,7 +48,7 @@ class DebugTransportSettings(context: Context) {
     }
 
   var multicastEnabled: Boolean
-    get() = prefs.getBoolean(KEY_MULTICAST, false)
+    get() = prefs.getBoolean(KEY_MULTICAST, true)
     set(value) {
       prefs.edit { putBoolean(KEY_MULTICAST, value) }
     }
@@ -48,5 +59,6 @@ class DebugTransportSettings(context: Context) {
     private const val KEY_LAN = "lan_enabled"
     private const val KEY_MDNS = "mdns_enabled"
     private const val KEY_MULTICAST = "multicast_enabled"
+    private const val KEY_LAN_DISCOVERY_DEFAULT_V2 = "lan_discovery_default_v2"
   }
 }

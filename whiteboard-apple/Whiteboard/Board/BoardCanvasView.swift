@@ -58,6 +58,7 @@ struct BoardCanvasView: View {
   let bannerMessage: String?
   let onPreview: (String, [LogicalPoint]) -> Void
   let onCommit: (String, [LogicalPoint]) -> Void
+  @Environment(\.dittoColors) private var colors
 
   @State private var viewportInitialized = false
   @State private var activePoints: [LogicalPoint] = []
@@ -69,7 +70,10 @@ struct BoardCanvasView: View {
 
   var body: some View {
     boardCanvas
-      .background(Color(argb: Int32(bitPattern: 0xFF25_2A2D)))
+      // The area around the finite whiteboard is visible on wide displays such
+      // as iPhone Duo. It must follow the same semantic theme as the rest of
+      // the app; a fixed dark backing makes a light interface look half-dark.
+      .background(colors.background)
       .overlay(alignment: .bottom) {
         if let bannerMessage {
           ConnectivityBanner(message: bannerMessage)

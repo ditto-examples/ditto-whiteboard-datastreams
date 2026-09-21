@@ -30,3 +30,20 @@ public func admittedPresenceConnections(
     admittedGraphKeys.contains($0.peer1) && admittedGraphKeys.contains($0.peer2)
   })
 }
+
+/// Returns only the Presence Graph transport edges directly connecting the local and remote
+/// peers. A remote peer's `connections` collection describes its entire view of the mesh, so an
+/// unfiltered collection can incorrectly attribute a connection between two other peers (such as
+/// an Apple-to-Apple P2P Wi-Fi edge) to the local device.
+public func directPresenceTransports(
+  localPeerKey: String,
+  remotePeerKey: String,
+  connections: some Sequence<PresenceConnection>
+) -> Set<String> {
+  Set(connections.compactMap { connection in
+    let directlyConnected =
+      (connection.peer1 == localPeerKey && connection.peer2 == remotePeerKey) ||
+      (connection.peer1 == remotePeerKey && connection.peer2 == localPeerKey)
+    return directlyConnected ? connection.transport : nil
+  })
+}

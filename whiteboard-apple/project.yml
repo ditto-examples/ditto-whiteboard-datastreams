@@ -63,10 +63,10 @@ targets:
         ENABLE_DEBUG_DYLIB: NO
         ENABLE_TESTABILITY: YES
         SWIFT_EMIT_LOC_STRINGS: YES
+        INFOPLIST_FILE: Whiteboard/Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: "Ditto Whiteboard"
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Whiteboard uses the local network to sync your board with nearby devices."
         INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: "Whiteboard uses Bluetooth to sync your board with nearby devices."
-        INFOPLIST_KEY_NSBonjourServices: "_http-alt._tcp. _http-alt._udp."
         INFOPLIST_KEY_UIRequiresFullScreen: NO
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"

@@ -661,8 +661,11 @@ public final class DittoWhiteboardTransport: WhiteboardTransport, @unchecked Sen
     ditto.updateTransportConfig { config in
       config.peerToPeer.bluetoothLE.isEnabled = true
       config.peerToPeer.lan.isEnabled = true
+      // Keep Apple in parity with Android and Edge Studio: the LAN transport uses
+      // both mDNS and ordinary IP-multicast discovery.  This is distinct from
+      // Ditto's opt-in `multicastBeta` data transport and needs no entitlement.
       config.peerToPeer.lan.isMDNSEnabled = true
-      config.peerToPeer.lan.isMulticastEnabled = false
+      config.peerToPeer.lan.isMulticastEnabled = true
       // Apple has no Wi-Fi Aware; AWDL is the nearest equivalent.
       config.peerToPeer.awdl.isEnabled = true
       config.listen.tcp.isEnabled = false
@@ -903,7 +906,11 @@ public final class DittoWhiteboardTransport: WhiteboardTransport, @unchecked Sen
           return next
         }
       }
-      let connectionNames = Set(peer.connections.map { $0.type.rawValue })
+      let connectionNames = directPresenceTransports(
+        localPeerKey: localPeerKey,
+        remotePeerKey: peer.peerKey,
+        connections: connections
+      )
       let knownProfile = knownLog.profile(peer.peerKey)
       let displayName = knownProfile?.displayName
         ?? safeDisplayName(metadataString(peer.peerMetadata["displayName"]) ?? peer.deviceName)

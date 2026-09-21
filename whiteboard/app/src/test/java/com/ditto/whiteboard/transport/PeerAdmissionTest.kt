@@ -27,4 +27,22 @@ class PeerAdmissionTest {
     val discovered = (1..MAX_CONNECTED_PEERS).map { "a-$it" }
     assertTrue(admittedPeerKeys("z-local", discovered).isEmpty())
   }
+
+  @Test
+  fun peerTransportAttributionIncludesOnlyDirectPresenceEdges() {
+    val connections = listOf(
+      PresenceConnection("android", "iphone-duo", "Bluetooth LE"),
+      PresenceConnection("iphone-duo", "ui-tester", "P2P WiFi"),
+      PresenceConnection("ui-tester", "android", "LAN"),
+    )
+
+    assertEquals(
+      setOf("Bluetooth LE"),
+      directPresenceTransports("android", "iphone-duo", connections),
+    )
+    assertEquals(
+      setOf("LAN"),
+      directPresenceTransports("android", "ui-tester", connections),
+    )
+  }
 }

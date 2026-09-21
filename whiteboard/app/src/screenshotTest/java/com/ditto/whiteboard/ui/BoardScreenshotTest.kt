@@ -22,8 +22,10 @@ import com.ditto.whiteboard.transport.TransportMode
 import com.ditto.whiteboard.ui.board.BoardScreen
 import com.ditto.whiteboard.ui.board.ConnectedPeoplePane
 import com.ditto.whiteboard.ui.profile.ProfileSetupScreen
+import com.ditto.whiteboard.ui.peers.PeerListScreen
 import com.ditto.whiteboard.ui.theme.WhiteboardTheme
 import com.ditto.whiteboard.ui.troubleshooting.TroubleshootingScreen
+import com.ditto.whiteboard.ui.troubleshooting.presencegraph.PresenceGraphUiState
 import kotlinx.collections.immutable.persistentMapOf
 
 @Target(AnnotationTarget.FUNCTION, AnnotationTarget.ANNOTATION_CLASS)
@@ -124,6 +126,22 @@ fun TroubleshootingScreenshots() {
   WhiteboardTheme {
     TroubleshootingScreen(
       diagnostics = sampleDiagnostics(),
+      presenceGraphState = PresenceGraphUiState.Initializing,
+      onBack = {},
+    )
+  }
+}
+
+@PreviewTest
+@Preview(name = "Peers phone", widthDp = 400, heightDp = 800)
+@Preview(name = "Peers tablet", widthDp = 900, heightDp = 800)
+@Preview(name = "Peers dark", widthDp = 900, heightDp = 800, uiMode = 0x20)
+@Composable
+fun PeerListScreenshots() {
+  WhiteboardTheme {
+    PeerListScreen(
+      diagnostics = sampleDiagnostics(),
+      profile = ProfileSettings("Ada Lovelace", 0xFF0057B8.toInt()),
       onBack = {},
     )
   }
@@ -142,8 +160,6 @@ private fun PreviewBoard(dark: Boolean = false) {
       onPreview = { _, _ -> },
       onCommit = { _, _, _ -> },
       onClear = {},
-      onEditProfile = {},
-      onTroubleshooting = {},
     )
   }
 }

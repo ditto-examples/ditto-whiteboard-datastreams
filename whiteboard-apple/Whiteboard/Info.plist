@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+        <!-- Ditto LAN discovery browses and advertises both TCP and UDP variants. This must be
+             an array in the built app's Info.plist; an INFOPLIST_KEY build setting cannot express it. -->
+        <key>NSBonjourServices</key>
+        <array>
+            <string>_http-alt._tcp.</string>
+            <string>_http-alt._udp.</string>
+        </array>
+</dict>
+</plist>

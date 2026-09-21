@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.ditto.whiteboard.data.BoardSession
 import com.ditto.whiteboard.data.ProfileRepository
 import com.ditto.whiteboard.domain.BoardState
+import com.ditto.whiteboard.domain.BoardTextFont
+import com.ditto.whiteboard.domain.DEFAULT_TEXT_FONT
+import com.ditto.whiteboard.domain.DEFAULT_TEXT_SIZE
 import com.ditto.whiteboard.domain.DrawingTool
 import com.ditto.whiteboard.domain.LivePreview
 import com.ditto.whiteboard.domain.LogicalPoint
@@ -13,7 +16,10 @@ import com.ditto.whiteboard.domain.WHITEBOARD_PALETTE
 import com.ditto.whiteboard.domain.isApprovedWhiteboardColor
 import com.ditto.whiteboard.domain.normalizeWhiteboardColor
 import com.ditto.whiteboard.transport.TransportDiagnostics
+import com.ditto.whiteboard.ui.troubleshooting.presencegraph.PresenceGraphRepository
+import com.ditto.whiteboard.ui.troubleshooting.presencegraph.PresenceGraphUiState
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -85,6 +91,24 @@ class WhiteboardViewModel(
       }
     }
   }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BoardUiState())
+
+  /**
+   * Raw presence-graph state for the presence viewer (Troubleshooting + the dedicated
+   * screen). Backed by a single [PresenceGraphRepository] per Ditto instance; emits
+   * [PresenceGraphUiState.Initializing] while no real transport exists (in-memory
+   * preview, or before the session is created).
+   */
+  private var presenceRepository: PresenceGraphRepository? = null
+  val presenceGraphState: StateFlow<PresenceGraphUiState> = sessionState.flatMapLatest { session ->
+    val ditto = session?.rawDitto
+    if (ditto == null) {
+      flowOf(PresenceGraphUiState.Initializing)
+    } else {
+      val repository = presenceRepository?.takeIf { it.ditto === ditto }
+        ?: PresenceGraphRepository(ditto, viewModelScope).also { presenceRepository = it }
+      repository.state
+    }
+  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PresenceGraphUiState.Initializing)
 
   private suspend fun session(): BoardSession =
     ownedSession ?: sessionMutex.withLock {
@@ -159,7 +183,22 @@ class WhiteboardViewModel(
   fun preview(gestureId: String, points: List<LogicalPoint>) =
     sessionState.value?.preview(gestureId, selectedTool.value, selectedColor.value, points)
   fun commit(gestureId: String, points: List<LogicalPoint>, text: String = "") =
-    sessionState.value?.commit(selectedTool.value, selectedColor.value, points, text, gestureId)
+    commitText(gestureId, points, text, DEFAULT_TEXT_FONT, DEFAULT_TEXT_SIZE)
+  fun commitText(
+    gestureId: String,
+    points: List<LogicalPoint>,
+    text: String,
+    textFont: BoardTextFont,
+    textSize: Int,
+  ) = sessionState.value?.commit(
+    selectedTool.value,
+    selectedColor.value,
+    points,
+    text,
+    textFont,
+    textSize,
+    gestureId,
+  )
   fun clear() = sessionState.value?.clear()
 
   class Factory(

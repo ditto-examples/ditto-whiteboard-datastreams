@@ -4,6 +4,7 @@ import com.ditto.whiteboard.domain.BoardObject
 import com.ditto.whiteboard.domain.BoardOperation
 import com.ditto.whiteboard.domain.BoardReducer
 import com.ditto.whiteboard.domain.BoardState
+import com.ditto.whiteboard.domain.BoardTextFont
 import com.ditto.whiteboard.domain.DrawingTool
 import com.ditto.whiteboard.domain.LivePreview
 import com.ditto.whiteboard.domain.LogicalPoint
@@ -29,6 +30,26 @@ class WhiteboardProtocolTest {
     assertTrue(decoded is ProtocolDecodeResult.Compatible)
     val envelope = (decoded as ProtocolDecodeResult.Compatible).value
     assertEquals(operation, WhiteboardProtocol.decodeOperation(envelope))
+  }
+
+  @Test
+  fun textFontAndSizeRoundTripThroughTheReliableEnvelope() {
+    val valid = operation()
+    val styled = valid.copy(
+      boardObject = BoardObject.Text(
+        id = valid.boardObject.id,
+        stamp = valid.stamp,
+        colorArgb = WHITEBOARD_PALETTE.first(),
+        anchor = LogicalPoint(1, 2),
+        text = "Styled",
+        size = 80,
+        font = BoardTextFont.Rounded,
+      ),
+    )
+
+    val decoded = WhiteboardProtocol.decodeEnvelope(WhiteboardProtocol.operationEnvelope(styled))
+    assertTrue(decoded is ProtocolDecodeResult.Compatible)
+    assertEquals(styled, WhiteboardProtocol.decodeOperation((decoded as ProtocolDecodeResult.Compatible).value))
   }
 
   @Test

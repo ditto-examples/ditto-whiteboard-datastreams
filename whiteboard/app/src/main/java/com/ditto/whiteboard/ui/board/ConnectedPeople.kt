@@ -80,14 +80,27 @@ internal fun ConnectedPeoplePane(
   onClose: () -> Unit,
   modifier: Modifier = Modifier,
   expanded: Boolean = false,
+  framed: Boolean = true,
 ) {
   val people = remember(state.board.profiles, state.diagnostics, state.colorArgb) { state.connectedPeople() }
-  Surface(
-    modifier = modifier
-      .then(if (expanded) Modifier.width(320.dp).fillMaxHeight() else Modifier.fillMaxWidth().heightIn(min = 260.dp, max = 560.dp)),
-    color = MaterialTheme.colorScheme.surfaceContainer,
-    tonalElevation = if (expanded) 2.dp else 0.dp,
-  ) {
+  if (framed) {
+    Surface(
+      modifier = modifier
+        .then(if (expanded) Modifier.width(320.dp).fillMaxHeight() else Modifier.fillMaxWidth().heightIn(min = 260.dp, max = 560.dp)),
+      color = MaterialTheme.colorScheme.surfaceContainer,
+      tonalElevation = if (expanded) 2.dp else 0.dp,
+    ) {
+      ConnectedPeopleContent(people, onClose)
+    }
+  } else {
+    Box(modifier.fillMaxWidth()) {
+      ConnectedPeopleContent(people, onClose)
+    }
+  }
+}
+
+@Composable
+private fun ConnectedPeopleContent(people: List<ConnectedPerson>, onClose: () -> Unit) {
     Column {
       Row(
         modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 8.dp),
@@ -129,7 +142,6 @@ internal fun ConnectedPeoplePane(
         }
       }
     }
-  }
 }
 
 @Composable

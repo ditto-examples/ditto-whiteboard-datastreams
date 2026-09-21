@@ -2,15 +2,21 @@ package com.ditto.whiteboard.ui
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import com.ditto.whiteboard.domain.BoardState
+import com.ditto.whiteboard.domain.DrawingTool
 import com.ditto.whiteboard.domain.UserProfile
 import com.ditto.whiteboard.transport.PeerDiagnostics
 import com.ditto.whiteboard.transport.TransportDiagnostics
@@ -94,8 +100,6 @@ class WhiteboardScreensTest {
           onPreview = { _, _ -> },
           onCommit = { _, _, _ -> },
           onClear = { cleared = true },
-          onEditProfile = {},
-          onTroubleshooting = {},
         )
       }
     }
@@ -117,8 +121,6 @@ class WhiteboardScreensTest {
           onPreview = { _, _ -> },
           onCommit = { _, _, _ -> },
           onClear = {},
-          onEditProfile = {},
-          onTroubleshooting = {},
         )
       }
     }
@@ -128,6 +130,40 @@ class WhiteboardScreensTest {
     composeTestRule.onNodeWithText("Fill").assertIsDisplayed()
     composeTestRule.onNodeWithText("Fit").performClick()
     composeTestRule.onNodeWithText("100%").assertIsDisplayed()
+  }
+
+  @Test
+  fun compactToolbarGroupsColorsShapesAndAllTools() {
+    var selectedTool: DrawingTool? = null
+    var selectedColor: Int? = null
+    composeTestRule.setContent {
+      WhiteboardTheme {
+        BoardScreen(
+          state = BoardUiState(),
+          onSelectTool = { selectedTool = it },
+          onSelectColor = { selectedColor = it },
+          onPreview = { _, _ -> },
+          onCommit = { _, _, _ -> },
+          onClear = {},
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithContentDescription("Color").performClick()
+    composeTestRule.onNodeWithContentDescription("Green").performClick()
+    composeTestRule.runOnIdle { assertEquals(WHITEBOARD_COLORS[2], selectedColor) }
+
+    composeTestRule.onNodeWithContentDescription("Shapes").performClick()
+    composeTestRule.onNodeWithText("Rectangle").performClick()
+    composeTestRule.runOnIdle { assertEquals(DrawingTool.Rectangle, selectedTool) }
+
+    composeTestRule.onNodeWithContentDescription("Text and tools").performClick()
+    composeTestRule.onNodeWithText("Eraser").performClick()
+    composeTestRule.runOnIdle { assertEquals(DrawingTool.Eraser, selectedTool) }
+
+    composeTestRule.onNodeWithContentDescription("Text and tools").performClick()
+    composeTestRule.onNodeWithText("Hand").performClick()
+    composeTestRule.runOnIdle { assertEquals(DrawingTool.Hand, selectedTool) }
   }
 
   @Test
@@ -154,13 +190,12 @@ class WhiteboardScreensTest {
           onPreview = { _, _ -> },
           onCommit = { _, _, _ -> },
           onClear = {},
-          onEditProfile = {},
-          onTroubleshooting = {},
         )
       }
     }
 
-    composeTestRule.onNodeWithContentDescription("Connected people, 2").performClick()
+    // The people badge was removed; the sidebar toggle opens the panel on People.
+    composeTestRule.onNodeWithContentDescription("Show or hide the people, profile, and troubleshooting panel").performClick()
     composeTestRule.onNodeWithText("People on this board").assertIsDisplayed()
     composeTestRule.onNodeWithText("Ada").assertIsDisplayed()
     composeTestRule.onNodeWithText("Grace").fetchSemanticsNode()
@@ -169,8 +204,7 @@ class WhiteboardScreensTest {
   }
 
   @Test
-  @Config(sdk = [35], qualifiers = "w900dp-h500dp")
-  fun shortWideLayoutKeepsEveryColorReachableInOverflow() {
+  fun sidebarOpensOnPeopleSectionByDefault() {
     composeTestRule.setContent {
       WhiteboardTheme {
         BoardScreen(
@@ -180,20 +214,131 @@ class WhiteboardScreensTest {
           onPreview = { _, _ -> },
           onCommit = { _, _, _ -> },
           onClear = {},
-          onEditProfile = {},
-          onTroubleshooting = {},
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithContentDescription("Show or hide the people, profile, and troubleshooting panel").performClick()
+    composeTestRule.onNodeWithText("People on this board").assertIsDisplayed()
+    // Toggling the sidebar off hides the panel.
+    composeTestRule.onNodeWithContentDescription("Show or hide the people, profile, and troubleshooting panel").performClick()
+    composeTestRule.onNodeWithText("People on this board").assertDoesNotExist()
+  }
+
+  @Test
+  fun sidebarToggleShowsAndHidesPanel() {
+    composeTestRule.setContent {
+      WhiteboardTheme {
+        BoardScreen(
+          state = BoardUiState(),
+          onSelectTool = {},
+          onSelectColor = {},
+          onPreview = { _, _ -> },
+          onCommit = { _, _, _ -> },
+          onClear = {},
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithContentDescription("People").assertDoesNotExist()
+    composeTestRule
+      .onNodeWithContentDescription("Show or hide the people, profile, and troubleshooting panel")
+      .performClick()
+    composeTestRule.onNodeWithContentDescription("People").assertIsDisplayed()
+    composeTestRule.onNodeWithContentDescription("Profile").assertIsDisplayed()
+    composeTestRule.onNodeWithContentDescription("Troubleshooting").assertIsDisplayed()
+    composeTestRule
+      .onNodeWithContentDescription("Show or hide the people, profile, and troubleshooting panel")
+      .performClick()
+    composeTestRule.onNodeWithContentDescription("People").assertDoesNotExist()
+  }
+
+  @Test
+  fun sidebarSwitchesSectionsInPlace() {
+    composeTestRule.setContent {
+      WhiteboardTheme {
+        BoardScreen(
+          state = BoardUiState(),
+          onSelectTool = {},
+          onSelectColor = {},
+          onPreview = { _, _ -> },
+          onCommit = { _, _, _ -> },
+          onClear = {},
+          profile = com.ditto.whiteboard.data.ProfileSettings("Ada", WHITEBOARD_COLORS[1]),
+        )
+      }
+    }
+
+    composeTestRule
+      .onNodeWithContentDescription("Show or hide the people, profile, and troubleshooting panel")
+      .performClick()
+    composeTestRule.onNodeWithText("People on this board").assertIsDisplayed()
+
+    composeTestRule.onNodeWithContentDescription("Profile").performClick()
+    composeTestRule.onNodeWithText("Save profile").performScrollTo().assertIsDisplayed()
+    composeTestRule.onNodeWithText("People on this board").assertDoesNotExist()
+
+    composeTestRule.onNodeWithContentDescription("Troubleshooting").performClick()
+    composeTestRule.onNodeWithText("Debug transports").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Save profile").assertDoesNotExist()
+
+    composeTestRule.onNodeWithContentDescription("People").performClick()
+    composeTestRule.onNodeWithText("People on this board").assertIsDisplayed()
+  }
+
+  @Test
+  fun sidebarPanelSavesProfileWithoutDismissing() {
+    var saved: Pair<String, Int>? = null
+    var dismissed = false
+    composeTestRule.setContent {
+      WhiteboardTheme {
+        var section by remember {
+          mutableStateOf(com.ditto.whiteboard.ui.board.SidebarSection.Profile)
+        }
+        com.ditto.whiteboard.ui.board.BoardSidebarPanel(
+          state = BoardUiState(),
+          section = section,
+          onSectionChange = { section = it },
+          onDismiss = { dismissed = true },
+          onSaveProfile = { name, color -> saved = name to color },
+          profile = com.ditto.whiteboard.data.ProfileSettings("Ada", WHITEBOARD_COLORS[1]),
+          profileErrorMessage = null,
+          presenceGraphState = com.ditto.whiteboard.ui.troubleshooting.presencegraph.PresenceGraphUiState.Initializing,
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithText("Save profile").performScrollTo().performClick()
+    composeTestRule.runOnIdle {
+      assertEquals("Ada" to WHITEBOARD_COLORS[1], saved)
+      assertTrue(!dismissed)
+    }
+  }
+
+  @Test
+  @Config(sdk = [35], qualifiers = "w900dp-h500dp")
+  fun shortWideLayoutKeepsEveryColorReachableInColorMenu() {
+    composeTestRule.setContent {
+      WhiteboardTheme {
+        BoardScreen(
+          state = BoardUiState(),
+          onSelectTool = {},
+          onSelectColor = {},
+          onPreview = { _, _ -> },
+          onCommit = { _, _, _ -> },
+          onClear = {},
           modifier = androidx.compose.ui.Modifier.size(900.dp, 500.dp),
         )
       }
     }
 
-    composeTestRule.onNodeWithContentDescription("More tools and colors").performClick()
-    composeTestRule.onNodeWithText("Color 8").fetchSemanticsNode()
+    composeTestRule.onNodeWithContentDescription("Color").performClick()
+    composeTestRule.onNodeWithContentDescription("Magenta").fetchSemanticsNode()
   }
 
   @Test
   @Config(sdk = [35], qualifiers = "w900dp-h800dp")
-  fun mediumHeightTabletAlsoKeepsPaletteInReachableOverflow() {
+  fun mediumHeightTabletAlsoKeepsPaletteInReachableColorMenu() {
     composeTestRule.setContent {
       WhiteboardTheme {
         BoardScreen(
@@ -203,14 +348,12 @@ class WhiteboardScreensTest {
           onPreview = { _, _ -> },
           onCommit = { _, _, _ -> },
           onClear = {},
-          onEditProfile = {},
-          onTroubleshooting = {},
           modifier = androidx.compose.ui.Modifier.size(900.dp, 800.dp),
         )
       }
     }
 
-    composeTestRule.onNodeWithContentDescription("More tools and colors").performClick()
-    composeTestRule.onNodeWithText("Color 8").fetchSemanticsNode()
+    composeTestRule.onNodeWithContentDescription("Color").performClick()
+    composeTestRule.onNodeWithContentDescription("Magenta").fetchSemanticsNode()
   }
 }

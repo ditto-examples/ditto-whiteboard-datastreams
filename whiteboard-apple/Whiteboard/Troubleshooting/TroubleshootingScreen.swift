@@ -17,10 +17,6 @@ struct TroubleshootingScreen: View {
   #endif
   @State private var showPresenceViewer = false
 
-  private var peers: [PeerDiagnostics] {
-    diagnostics.peers.values.sorted { $0.peerKey < $1.peerKey }
-  }
-
   var body: some View {
     if embedded {
       content
@@ -73,44 +69,6 @@ struct TroubleshootingScreen: View {
         } footer: {
           Text("Applied at startup — restart the app after changing.")
         }
-        if peers.isEmpty {
-          Section("Peers") {
-            Text("No nearby peers.")
-              .foregroundStyle(.secondary)
-          }
-        } else {
-          ForEach(peers, id: \.peerKey) { peer in
-            Section(peer.displayName ?? "Nearby peer \(peer.peerKey.suffix(8))") {
-              LabeledContent("Peer key", value: peer.peerKey)
-                .font(.footnote)
-              LabeledContent(
-                "Transports",
-                value: peer.transports.isEmpty
-                  ? "No direct transport" : peer.transports.sorted().joined(separator: ", ")
-              )
-              LabeledContent("wb_live", value: peer.liveConnected ? "Connected" : "Offline")
-              LabeledContent("wb_state", value: peer.stateConnected ? "Connected" : "Offline")
-              LabeledContent(
-                "Snapshot",
-                value:
-                  "\(snapshotStatusLabel(peer.snapshotStatus)) · \(Int((Double(peer.snapshotProgress) * 100).rounded()))%"
-              )
-              LabeledContent(
-                "Traffic",
-                value: String(
-                  format: "TX %.1f/s · RX %.1f/s",
-                  peer.transmitMessagesPerSecond,
-                  peer.receiveMessagesPerSecond
-                )
-              )
-              if let lastError = peer.lastError {
-                Text(lastError)
-                  .font(.footnote)
-                  .foregroundStyle(.red)
-              }
-            }
-          }
-        }
         if !diagnostics.incompatiblePeers.isEmpty {
           Section("Incompatible protocol versions") {
             ForEach(
@@ -156,15 +114,4 @@ struct TroubleshootingScreen: View {
     )
   }
 
-  private func snapshotStatusLabel(_ status: SnapshotStatus) -> String {
-    switch status {
-    case .idle: return "Idle"
-    case .queued: return "Queued — the peer is busy receiving another snapshot"
-    case .receiving: return "Receiving"
-    case .merged: return "Merged"
-    case .rejected: return "Rejected"
-    case .acknowledged: return "Acknowledged"
-    case .sending: return "Sending"
-    }
-  }
 }

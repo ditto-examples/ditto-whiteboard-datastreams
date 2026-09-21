@@ -119,6 +119,7 @@ fun BoardScreen(
     onCommit(gestureId, points, text)
   },
   onPresenceGraph: () -> Unit = {},
+  onPeerList: () -> Unit = {},
   profile: ProfileSettings? = null,
   onSaveProfile: (String, Int) -> Unit = { _, _ -> },
   presenceGraphState: PresenceGraphUiState = PresenceGraphUiState.Initializing,
@@ -144,6 +145,9 @@ fun BoardScreen(
           actions = {
             IconButton(onClick = onPresenceGraph) {
               Icon(Icons.Outlined.Hub, stringResource(R.string.action_presence_graph))
+            }
+            IconButton(onClick = onPeerList) {
+              Icon(Icons.Default.Groups, stringResource(R.string.action_peer_list))
             }
             IconButton(
               onClick = { confirmClear = true },

@@ -49,6 +49,7 @@ struct BoardScreen: View {
   @State private var showSidebar = false
   @State private var sidebarSection = BoardSidebarSection.people
   @State private var showPresenceViewer = false
+  @State private var showPeerList = false
   @State private var textDraft: TextDraft?
   @State private var textInput = ""
   @State private var textFont = defaultTextFont
@@ -200,6 +201,7 @@ struct BoardScreen: View {
             onSelectColor: model.selectColor,
             editingEnabled: model.diagnostics.editingReady,
             onShowPresence: { showPresenceViewer = true },
+            onShowPeers: { showPeerList = true },
             onClear: { confirmClear = true },
             onToggleSidebar: { showSidebar.toggle() }
           )
@@ -211,6 +213,7 @@ struct BoardScreen: View {
             BoardActionsMenu(
               editingEnabled: model.diagnostics.editingReady,
               onShowPresence: { showPresenceViewer = true },
+              onShowPeers: { showPeerList = true },
               onClear: { confirmClear = true },
               onToggleSidebar: { showSidebar.toggle() }
             )
@@ -226,6 +229,12 @@ struct BoardScreen: View {
               Label("Presence graph", systemImage: "dot.radiowaves.left.and.right")
             }
             .accessibilityIdentifier("presenceGraphButton")
+            Button {
+              showPeerList = true
+            } label: {
+              Label("Peer listing", systemImage: "person.2")
+            }
+            .accessibilityIdentifier("peerListButton")
             Button {
               confirmClear = true
             } label: {
@@ -250,6 +259,12 @@ struct BoardScreen: View {
             Label("Presence graph", systemImage: "dot.radiowaves.left.and.right")
           }
           .accessibilityIdentifier("presenceGraphButton")
+          Button {
+            openWindow(id: "peer-list")
+          } label: {
+            Label("Peer listing", systemImage: "person.2")
+          }
+          .accessibilityIdentifier("peerListButton")
           Button {
             confirmClear = true
           } label: {
@@ -293,6 +308,9 @@ struct BoardScreen: View {
     #if !os(macOS)
     .fullScreenCover(isPresented: $showPresenceViewer) {
       PresenceViewerScreen(appModel: model)
+    }
+    .fullScreenCover(isPresented: $showPeerList) {
+      PeerListScreen(appModel: model)
     }
     #endif
     // Unified sidebar: People / Profile / Troubleshooting behind one segmented
@@ -892,6 +910,7 @@ private struct CompactBoardSystemToolbar: ToolbarContent {
   let onSelectColor: (Int32) -> Void
   let editingEnabled: Bool
   let onShowPresence: () -> Void
+  let onShowPeers: () -> Void
   let onClear: () -> Void
   let onToggleSidebar: () -> Void
 
@@ -934,6 +953,9 @@ private struct CompactBoardSystemToolbar: ToolbarContent {
     ToolbarOverflowMenu {
       Button(action: onShowPresence) {
         Label("Presence graph", systemImage: "dot.radiowaves.left.and.right")
+      }
+      Button(action: onShowPeers) {
+        Label("Peer listing", systemImage: "person.2")
       }
       Button(role: .destructive, action: onClear) {
         Label("Clear board", systemImage: "trash")
@@ -1271,6 +1293,7 @@ private struct ColorSwatch: View {
 private struct BoardActionsMenu: View {
   let editingEnabled: Bool
   let onShowPresence: () -> Void
+  let onShowPeers: () -> Void
   let onClear: () -> Void
   let onToggleSidebar: () -> Void
 
@@ -1278,6 +1301,9 @@ private struct BoardActionsMenu: View {
     Menu {
       Button(action: onShowPresence) {
         Label("Presence graph", systemImage: "dot.radiowaves.left.and.right")
+      }
+      Button(action: onShowPeers) {
+        Label("Peer listing", systemImage: "person.2")
       }
       Button(role: .destructive, action: onClear) {
         Label("Clear board", systemImage: "trash")

@@ -46,6 +46,15 @@ struct WhiteboardApp: App {
     }
     .defaultSize(width: 1440, height: 960)
     .defaultPosition(.center)
+
+    Window("Peers", id: "peer-list") {
+      DittoTheme {
+        PeerListScreen(appModel: model)
+      }
+        .frame(minWidth: 640, minHeight: 520)
+    }
+    .defaultSize(width: 960, height: 720)
+    .defaultPosition(.center)
     #endif
   }
 }

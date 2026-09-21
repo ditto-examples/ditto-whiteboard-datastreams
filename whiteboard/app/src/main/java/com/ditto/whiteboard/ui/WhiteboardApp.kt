@@ -34,6 +34,7 @@ import com.ditto.whiteboard.ui.board.BoardScreen
 import com.ditto.whiteboard.NearbyPermissionPrompt
 import com.ditto.whiteboard.R
 import com.ditto.whiteboard.ui.profile.ProfileSetupScreen
+import com.ditto.whiteboard.ui.peers.PeerListScreen
 import com.ditto.whiteboard.ui.troubleshooting.presencegraph.PresenceGraphScreen
 import kotlinx.serialization.Serializable
 
@@ -42,6 +43,9 @@ data object BoardRoute : NavKey
 
 @Serializable
 data object PresenceGraphRoute : NavKey
+
+@Serializable
+data object PeerListRoute : NavKey
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
@@ -127,6 +131,7 @@ internal fun WhiteboardApp(
           onCommitText = viewModel::commitText,
           onClear = viewModel::clear,
           onPresenceGraph = { show(PresenceGraphRoute) },
+          onPeerList = { show(PeerListRoute) },
           profile = profile,
           onSaveProfile = { name, color -> viewModel.saveProfile(name, color, onSaved = {}) },
           presenceGraphState = presenceGraphState,
@@ -136,6 +141,13 @@ internal fun WhiteboardApp(
         PresenceGraphScreen(
           state = presenceGraphState,
           diagnostics = boardState.diagnostics,
+          onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
+        )
+      }
+      entry<PeerListRoute>(metadata = SupportingPaneSceneStrategy.supportingPane()) {
+        PeerListScreen(
+          diagnostics = boardState.diagnostics,
+          profile = profile,
           onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
         )
       }

@@ -142,6 +142,16 @@
 
     <string name="presence_graph_title">Presence graph</string>
     <string name="action_presence_graph">Presence graph</string>
+    <string name="peer_list_title">Peers</string>
+    <string name="action_peer_list">Peer listing</string>
+    <string name="peer_list_this_device">This device</string>
+    <string name="peer_list_no_remote_peers">No nearby peers</string>
+    <string name="peer_list_no_remote_peers_description">This device will appear here when a nearby collaborator connects.</string>
+    <string name="peer_list_nearby_peer">Nearby peer %1$s</string>
+    <string name="peer_list_platform">Platform</string>
+    <string name="peer_list_whiteboard">Whiteboard</string>
+    <string name="peer_list_peer_key">Peer key</string>
+    <string name="peer_list_card_description">Peer diagnostics for %1$s</string>
     <string name="presence_focused_on">"Focused on "</string>
     <string name="presence_focused_on_description">Focused on %1$s</string>
     <string name="presence_exit_focus">Exit focus</string>

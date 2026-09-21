@@ -6,6 +6,8 @@ import WhiteboardCore
 import UIKit
 #endif
 
+private let peerCardHeight: CGFloat = 400
+
 /// A direct-peer diagnostic view. It intentionally uses the same admitted
 /// nearby peers as Transport, but makes their connection and stream state
 /// scannable without turning the Transport inspector into a long table.
@@ -96,7 +98,7 @@ private struct LocalPeerCard: View {
       PeerDetailRow(label: "Whiteboard", value: "SwiftUI")
     }
     .padding(16)
-    .frame(maxWidth: .infinity, alignment: .leading)
+    .frame(maxWidth: .infinity, minHeight: peerCardHeight, maxHeight: peerCardHeight, alignment: .leading)
     .background(.quaternary, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier("localPeerCard")
@@ -178,7 +180,7 @@ private struct PeerCard: View {
       }
     }
     .padding(16)
-    .frame(maxWidth: .infinity, alignment: .leading)
+    .frame(maxWidth: .infinity, minHeight: peerCardHeight, maxHeight: peerCardHeight, alignment: .leading)
     .foregroundStyle(appearance.foreground)
     .background(
       LinearGradient(

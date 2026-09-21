@@ -47,6 +47,8 @@ import com.ditto.whiteboard.transport.PeerDiagnostics
 import com.ditto.whiteboard.transport.SnapshotStatus
 import com.ditto.whiteboard.transport.TransportDiagnostics
 
+private val PeerCardHeight = 410.dp
+
 /**
  * Direct-peer diagnostic cards. This deliberately presents the same nearby
  * peers as Transport, but makes the connection and stream state quick to scan.
@@ -111,7 +113,7 @@ private fun LocalPeerCard(peerKey: String, profileName: String) {
     color = MaterialTheme.colorScheme.surfaceContainerHigh,
     shape = MaterialTheme.shapes.large,
     tonalElevation = 2.dp,
-    modifier = Modifier.fillMaxWidth(),
+    modifier = Modifier.fillMaxWidth().height(PeerCardHeight),
   ) {
     Column(
       modifier = Modifier.padding(16.dp),
@@ -142,7 +144,10 @@ private fun RemotePeerCard(peer: PeerDiagnostics) {
     color = Color.Transparent,
     shape = MaterialTheme.shapes.large,
     shadowElevation = 4.dp,
-    modifier = Modifier.fillMaxWidth().semantics { contentDescription = accessibilityLabel },
+    modifier = Modifier
+      .fillMaxWidth()
+      .height(PeerCardHeight)
+      .semantics { contentDescription = accessibilityLabel },
   ) {
     Column(
       modifier = Modifier

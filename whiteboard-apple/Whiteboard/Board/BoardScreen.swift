@@ -232,7 +232,7 @@ struct BoardScreen: View {
             Button {
               showPeerList = true
             } label: {
-              Label("Peer listing", systemImage: "person.2")
+              Label("Peer listing", systemImage: "list.dash.header.rectangle")
             }
             .accessibilityIdentifier("peerListButton")
             Button {
@@ -262,7 +262,7 @@ struct BoardScreen: View {
           Button {
             openWindow(id: "peer-list")
           } label: {
-            Label("Peer listing", systemImage: "person.2")
+            Label("Peer listing", systemImage: "list.dash.header.rectangle")
           }
           .accessibilityIdentifier("peerListButton")
           Button {
@@ -955,7 +955,7 @@ private struct CompactBoardSystemToolbar: ToolbarContent {
         Label("Presence graph", systemImage: "dot.radiowaves.left.and.right")
       }
       Button(action: onShowPeers) {
-        Label("Peer listing", systemImage: "person.2")
+        Label("Peer listing", systemImage: "list.dash.header.rectangle")
       }
       Button(role: .destructive, action: onClear) {
         Label("Clear board", systemImage: "trash")
@@ -1303,7 +1303,7 @@ private struct BoardActionsMenu: View {
         Label("Presence graph", systemImage: "dot.radiowaves.left.and.right")
       }
       Button(action: onShowPeers) {
-        Label("Peer listing", systemImage: "person.2")
+        Label("Peer listing", systemImage: "list.dash.header.rectangle")
       }
       Button(role: .destructive, action: onClear) {
         Label("Clear board", systemImage: "trash")

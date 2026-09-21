@@ -19,13 +19,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ViewSidebar
+import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FormatColorFill
-import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.HorizontalRule
 import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material.icons.filled.Rectangle
@@ -147,7 +147,7 @@ fun BoardScreen(
               Icon(Icons.Outlined.Hub, stringResource(R.string.action_presence_graph))
             }
             IconButton(onClick = onPeerList) {
-              Icon(Icons.Default.Groups, stringResource(R.string.action_peer_list))
+              Icon(Icons.AutoMirrored.Outlined.List, stringResource(R.string.action_peer_list))
             }
             IconButton(
               onClick = { confirmClear = true },

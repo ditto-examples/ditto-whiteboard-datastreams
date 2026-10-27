@@ -3,9 +3,9 @@
 ## Repository layout
 
 - `whiteboard/` — Android (Kotlin/Compose) Whiteboard demo for the Ditto Data
-  Streams API (public Ditto Kotlin SDK 5.2.0-rc.2).
+  Streams API (public Ditto Kotlin SDK 5.2.0).
 - `whiteboard-apple/` — SwiftUI Whiteboard demo for macOS, iOS, and iPadOS,
-  built against the public `DittoSwiftPackage` pinned to 5.2.0-rc.2.
+  built against the public `DittoSwiftPackage` pinned to 5.2.0.
 - `DittoDataStreams.md` — Data Streams API reference.
 - `SKILL.md` — Data Streams integration guide (ownership, cancellation,
   reconnect).
@@ -32,7 +32,7 @@ skills. Load the matching skill before doing related work:
 ## Ditto Swift SDK
 
 The SwiftUI app and WhiteboardKit resolve the public `DittoSwiftPackage`
-at exactly `5.2.0-rc.2` through Swift Package Manager. Run `xcodegen generate`
+at exactly `5.2.0` through Swift Package Manager. Run `xcodegen generate`
 inside `whiteboard-apple/` after project configuration changes. The historical
 `scripts/build_dittoswift_xcframework.sh` is only for custom SDK development;
 the app no longer references its output.

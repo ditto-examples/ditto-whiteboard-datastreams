@@ -7,7 +7,7 @@ options:
 packages:
   DittoSwiftPackage:
     url: https://github.com/getditto/DittoSwiftPackage.git
-    exactVersion: 5.2.0-rc.2
+    exactVersion: 5.2.0
   Anvil:
     path: ../anvil/swift/Anvil
   WhiteboardCore:

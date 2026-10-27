@@ -38,7 +38,7 @@ approved references. Do not regenerate references locally.
 
 ## Apple verification
 
-Both platforms pin the public Ditto SDK to `5.2.0-rc.2`. Run the Swift package
+Both platforms pin the public Ditto SDK to `5.2.0`. Run the Swift package
 tests on macOS, including WhiteboardKit's real SDK transport integration tests:
 
 ```bash

@@ -20,8 +20,8 @@ protobuf = "4.35.1"
 protobufPlugin = "0.10.0"
 robolectric = "4.16.1"
 screenshot = "0.0.1-alpha15"
-# Keep Android and Apple on the same public release candidate for cross-platform interop.
-ditto = { strictly = "5.2.0-rc.2" }
+# Keep Android and Apple on the same public release for cross-platform interop.
+ditto = { strictly = "5.2.0" }
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }

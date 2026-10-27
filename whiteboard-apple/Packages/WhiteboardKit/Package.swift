@@ -12,7 +12,7 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../WhiteboardCore"),
-        .package(url: "https://github.com/getditto/DittoSwiftPackage.git", exact: "5.2.0-rc.2"),
+        .package(url: "https://github.com/getditto/DittoSwiftPackage.git", exact: "5.2.0"),
     ],
     targets: [
         .target(

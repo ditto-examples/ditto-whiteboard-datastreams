@@ -1,6 +1,6 @@
 # Ditto Data Streams Whiteboard
 
-An ephemeral, nearby-first Android whiteboard that teaches Ditto Data Streams
+An ephemeral, nearby-first Android and Apple whiteboard that teaches Ditto Data Streams
 through a working multi-device app. Up to ten peers exchange low-latency drawing
 previews and reliable board operations without writing anything to Ditto Store.
 
@@ -42,8 +42,25 @@ the degraded state in its banner and troubleshooting screen.
 The app follows the official v5 install guidance and depends on the Kotlin
 Multiplatform root module `com.ditto:ditto-kotlin`; Gradle resolves the
 platform-specific Android variant from its module metadata. The version catalog
-keeps the SDK in the 5.x lane (`require = "[5.0.1,6.0.0)"`, preferring 5.1.0)
-so minor and patch updates land without an unprompted major upgrade.
+pins the public SDK to `5.2.0-rc.2`, matching the Apple app.
+
+## Apple app (iOS, iPadOS, macOS)
+
+The SwiftUI app uses the public `DittoSwiftPackage` at exactly `5.2.0-rc.2`.
+Swift Package Manager downloads the SDK; a local Ditto checkout or custom
+xcframework is no longer required. Install Xcode and XcodeGen, then generate
+and open the project:
+
+```bash
+cd whiteboard-apple
+xcodegen generate
+open Whiteboard.xcodeproj
+```
+
+Select the **Whiteboard** scheme and an iOS simulator, device, or **My Mac**.
+The app reads the same repository-root `.env` during its build. Without
+credentials it runs in local-preview mode. See [Testing](docs/TESTING.md) for
+Apple package and app test commands.
 
 ## Connect nearby devices
 

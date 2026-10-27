@@ -11,23 +11,23 @@ let package = Package(
         .library(name: "WhiteboardKit", targets: ["WhiteboardKit"])
     ],
     dependencies: [
-        .package(path: "../WhiteboardCore")
+        .package(path: "../WhiteboardCore"),
+        .package(url: "https://github.com/getditto/DittoSwiftPackage.git", exact: "5.2.0-rc.2"),
     ],
     targets: [
         .target(
             name: "WhiteboardKit",
             dependencies: [
                 "WhiteboardCore",
-                "DittoSwift",
+                .product(name: "DittoSwift", package: "DittoSwiftPackage"),
             ]
-        ),
-        .binaryTarget(
-            name: "DittoSwift",
-            path: "../../Frameworks/DittoSwift.xcframework"
         ),
         .testTarget(
             name: "WhiteboardKitTests",
-            dependencies: ["WhiteboardKit", "WhiteboardCore", "DittoSwift"]
+            dependencies: [
+                "WhiteboardKit", "WhiteboardCore",
+                .product(name: "DittoSwift", package: "DittoSwiftPackage"),
+            ]
         ),
     ]
 )

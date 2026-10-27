@@ -380,7 +380,7 @@ public final class DittoWhiteboardTransport: WhiteboardTransport, @unchecked Sen
   }
 
   /// Ordered teardown per SKILL.md: cancel connection/retry work, close streams, close acceptors,
-  /// cancel the remaining workers, then close Ditto last so no task touches a closed endpoint.
+  /// cancel the remaining workers, then stop sync. The public Swift SDK releases Ditto on deinit.
   public func close() {
     let alreadyClosed = withState { state -> Bool in
       if state.closed { return true }
@@ -446,7 +446,6 @@ public final class DittoWhiteboardTransport: WhiteboardTransport, @unchecked Sen
     snapshotControlDispatcher.close()
     taskRegistry.cancelAll()
     ditto.sync.stop()
-    ditto.close()
     updateDiagnostics { current in
       var next = current
       next.running = false

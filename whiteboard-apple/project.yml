@@ -5,6 +5,9 @@ options:
     iOS: "17.0"
     macOS: "14.0"
 packages:
+  DittoSwiftPackage:
+    url: https://github.com/getditto/DittoSwiftPackage.git
+    exactVersion: 5.2.0-rc.2
   Anvil:
     path: ../anvil/swift/Anvil
   WhiteboardCore:
@@ -37,8 +40,8 @@ targets:
         product: WhiteboardKit
       - package: SwiftProtobuf
         product: SwiftProtobuf
-      - framework: Frameworks/DittoSwift.xcframework
-        embed: true
+      - package: DittoSwiftPackage
+        product: DittoSwift
     preBuildScripts:
       - name: Generate Ditto Credentials
         script: "${SRCROOT}/scripts/generate_credentials.sh"

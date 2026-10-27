@@ -3,11 +3,9 @@
 ## Repository layout
 
 - `whiteboard/` — Android (Kotlin/Compose) Whiteboard demo for the Ditto Data
-  Streams API (Ditto Kotlin SDK 5.1.0).
+  Streams API (public Ditto Kotlin SDK 5.2.0-rc.2).
 - `whiteboard-apple/` — SwiftUI Whiteboard demo for macOS, iOS, and iPadOS,
-  built against a locally built Ditto Swift SDK from the `main` branch of the
-  ditto monorepo (`~/Developer/ditto`), targeting the Data Streams API that
-  ships in Ditto SDK 5.2.0.
+  built against the public `DittoSwiftPackage` pinned to 5.2.0-rc.2.
 - `DittoDataStreams.md` — Data Streams API reference.
 - `SKILL.md` — Data Streams integration guide (ownership, cancellation,
   reconnect).
@@ -31,19 +29,17 @@ skills. Load the matching skill before doing related work:
 | adopt-c-bounds-safety | `docs/xcode-skills/adopt-c-bounds-safety` | Clang `-fbounds-safety` adoption in C code. |
 | uikit-app-modernization | `docs/xcode-skills/uikit-app-modernization` | UIKit modernization (scene lifecycle etc.). |
 
-## Building the custom Ditto Swift SDK
+## Ditto Swift SDK
 
-The SwiftUI app uses a locally built `DittoSwift.xcframework` (version
-`5.2.0-dev`) from the ditto monorepo:
-
-```bash
-cd ~/Developer/ditto          # must be on main
-make build-ios build-mac-all  # Rust FFI cores (arm64: iOS, iOS sim, macOS)
-# then assemble the 3-slice xcframework (see whiteboard-apple/scripts/)
-```
+The SwiftUI app and WhiteboardKit resolve the public `DittoSwiftPackage`
+at exactly `5.2.0-rc.2` through Swift Package Manager. Run `xcodegen generate`
+inside `whiteboard-apple/` after project configuration changes. The historical
+`scripts/build_dittoswift_xcframework.sh` is only for custom SDK development;
+the app no longer references its output.
 
 Data Streams on Swift is SPI-gated: use `@_spi(PreviewDataStreams) import
 DittoSwift`, enable NGN via system parameters (`network_enable_ngn`,
 `replication_over_ngn`), use `.smallPeersOnly` identity plus
 `setOfflineOnlyLicenseToken(_:)`, and call `try ditto.sync.start()` before
-using `ditto.dataStreams`.
+using `ditto.dataStreams`. The public Swift SDK has no `Ditto.close()` method;
+stop sync during transport teardown and let ARC release Ditto on deinit.

@@ -240,7 +240,7 @@ struct PresenceEdgeAggregatorTests {
 @Suite("ConnectionLine Multicast Style Tests")
 struct ConnectionLineMulticastStyleTests {
   @Test("Multicast line uses the golden-yellow transport color")
-  func multicastLineColor() {
+  func multicastLineColor() throws {
     // ARRANGE + ACT
     let line = ConnectionLine(
       from: "local",
@@ -253,9 +253,19 @@ struct ConnectionLineMulticastStyleTests {
     // ASSERT
     #expect(line.getConnectionType() == .multicast)
     let color = line.getColor()
-    #expect(abs(color.redComponent - 1.0) < 0.01)
-    #expect(abs(color.greenComponent - 0.84) < 0.01)
-    #expect(abs(color.blueComponent - 0.04) < 0.01)
+    #if os(macOS)
+      let red = color.redComponent
+      let green = color.greenComponent
+      let blue = color.blueComponent
+    #else
+      var red: CGFloat = 0
+      var green: CGFloat = 0
+      var blue: CGFloat = 0
+      try #require(color.getRed(&red, green: &green, blue: &blue, alpha: nil))
+    #endif
+    #expect(abs(red - 1.0) < 0.01)
+    #expect(abs(green - 0.84) < 0.01)
+    #expect(abs(blue - 0.04) < 0.01)
   }
 
   @Test("Multicast color is distinct from the other transport colors")

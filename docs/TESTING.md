@@ -36,6 +36,38 @@ validation. When an intentional UI change occurs, dispatch the
 `screenshot-references` artifact, inspect every changed image, and commit the
 approved references. Do not regenerate references locally.
 
+## Apple verification
+
+Both platforms pin their public Ditto SDK to stable `5.2.0`. Run the Swift
+package tests on macOS, including WhiteboardKit's real SDK transport integration
+tests:
+
+```bash
+cd whiteboard-apple/Packages/WhiteboardCore
+swift test
+cd ../..
+bash scripts/test_whiteboard_kit.sh
+```
+
+The WhiteboardKit helper builds tests, ad-hoc signs the downloaded SDK's local
+build copy, then runs tests. The public macOS framework is unsigned; plain
+`swift test` can fail to load it. Xcode app builds sign embedded frameworks
+automatically.
+
+Generate the Xcode project, then run app unit and UI tests on an installed iOS
+simulator (substitute an available simulator name):
+
+```bash
+cd whiteboard-apple
+xcodegen generate
+xcodebuild -project Whiteboard.xcodeproj -scheme Whiteboard \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test
+xcodebuild -project Whiteboard.xcodeproj -scheme WhiteboardTests \
+  -destination 'platform=macOS' test
+xcodebuild -project Whiteboard.xcodeproj -scheme Whiteboard \
+  -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+```
+
 ## Physical-device acceptance
 
 Host tests cannot certify nearby radios or end-to-end latency. Before a public

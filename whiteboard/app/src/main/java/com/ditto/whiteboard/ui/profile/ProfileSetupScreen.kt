@@ -61,14 +61,12 @@ fun ProfileSetupScreen(
   modifier: Modifier = Modifier,
   errorMessage: String? = null,
   onBack: () -> Unit = {},
+  embedded: Boolean = false,
 ) {
-  var name by rememberSaveable(existing?.displayName) { mutableStateOf(existing?.displayName.orEmpty()) }
-  var color by rememberSaveable(existing?.colorArgb) {
-    mutableIntStateOf(existing?.colorArgb ?: WHITEBOARD_COLORS[1])
+  if (embedded) {
+    ProfileSetupForm(existing, editing, onSave, errorMessage, modifier.fillMaxSize())
+    return
   }
-  var attemptedSave by rememberSaveable { mutableStateOf(false) }
-  val valid = name.trim().length in 1..24 && name.none(Char::isISOControl)
-
   Scaffold(
     modifier = modifier.fillMaxSize(),
     topBar = {
@@ -93,18 +91,35 @@ fun ProfileSetupScreen(
       )
     },
   ) { padding ->
-    // Scrollable + IME-aware so the action button stays reachable on short/landscape screens with
-    // the keyboard open, instead of being pushed off a fixed, centered column.
-    Column(
-      modifier = Modifier
-        .padding(padding)
-        .fillMaxSize()
-        .imePadding()
-        .verticalScroll(rememberScrollState())
-        .navigationBarsPadding()
-        .padding(horizontal = 24.dp, vertical = 16.dp),
-      horizontalAlignment = Alignment.Start,
-    ) {
+    ProfileSetupForm(existing, editing, onSave, errorMessage, Modifier.padding(padding).fillMaxSize())
+  }
+}
+
+@Composable
+private fun ProfileSetupForm(
+  existing: ProfileSettings?,
+  editing: Boolean,
+  onSave: (String, Int) -> Unit,
+  errorMessage: String?,
+  modifier: Modifier = Modifier,
+) {
+  var name by rememberSaveable(existing?.displayName) { mutableStateOf(existing?.displayName.orEmpty()) }
+  var color by rememberSaveable(existing?.colorArgb) {
+    mutableIntStateOf(existing?.colorArgb ?: WHITEBOARD_COLORS[1])
+  }
+  var attemptedSave by rememberSaveable { mutableStateOf(false) }
+  val valid = name.trim().length in 1..24 && name.none(Char::isISOControl)
+
+  // Scrollable + IME-aware so the action button stays reachable on short/landscape screens with
+  // the keyboard open, instead of being pushed off a fixed, centered column.
+  Column(
+    modifier = modifier
+      .imePadding()
+      .verticalScroll(rememberScrollState())
+      .navigationBarsPadding()
+      .padding(horizontal = 24.dp, vertical = 16.dp),
+    horizontalAlignment = Alignment.Start,
+  ) {
       Text(stringResource(R.string.profile_privacy_explanation), style = MaterialTheme.typography.bodyLarge)
       errorMessage?.let { message ->
         Spacer(Modifier.height(12.dp))
@@ -159,6 +174,5 @@ fun ProfileSetupScreen(
           stringResource(if (editing) R.string.action_save_profile else R.string.action_join_board),
         )
       }
-    }
   }
 }

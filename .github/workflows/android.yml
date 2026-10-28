@@ -20,7 +20,8 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # Screenshot references are rendered on this OS; keep runner upgrades deliberate.
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: whiteboard
@@ -78,3 +79,14 @@ jobs:
       - name: Verify 16 KB native LOAD alignment
         if: ${{ !inputs.update_screenshots }}
         run: python3 ../tools/verify_elf_alignment.py app/build/outputs/bundle/release/app-release.aab
+
+      - name: Upload verification reports
+        if: ${{ always() && !inputs.update_screenshots }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-verification-reports
+          path: |
+            whiteboard/app/build/reports/
+            whiteboard/app/build/test-results/
+            whiteboard/app/build/outputs/screenshotTest-results/
+          if-no-files-found: ignore

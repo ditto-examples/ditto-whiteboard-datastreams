@@ -54,6 +54,23 @@ class BoardSessionPreviewTest {
     assertEquals("peer-local", transport.sentLive.last().peerKey)
   }
 
+  @Test
+  fun handNavigationIsNotSentAsALivePreview() = runTest {
+    val transport = FakeTransport("peer-local")
+    val session = BoardSession(transport, backgroundScope, TEST_BOARD_SESSION_MESSAGES)
+    session.start("Local Artist", WHITEBOARD_PALETTE[1])
+    runCurrent()
+
+    session.preview(
+      "gesture-hand",
+      DrawingTool.Hand,
+      0xFF0057B8.toInt(),
+      listOf(LogicalPoint(10, 10), LogicalPoint(20, 20)),
+    )
+
+    assertTrue("Hand navigation must stay local", transport.sentLive.isEmpty())
+  }
+
   /** Remote previews must still flow into the map so peers' in-progress strokes render. */
   @Test
   fun remotePreviewIsAddedToPreviewsMap() = runTest {

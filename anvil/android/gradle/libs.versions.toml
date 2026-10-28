@@ -1,0 +1,16 @@
+[versions]
+# Toolchain
+agp = "9.2.1"
+kotlin = "2.3.21"
+
+# Android-only libraries (anvil-material3 + catalog-expressive)
+composeBom = "2026.06.00"
+
+[plugins]
+android-library = { id = "com.android.library", version.ref = "agp" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+
+[libraries]
+androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+androidx-compose-ui = { module = "androidx.compose.ui:ui" }
+androidx-compose-material3 = { module = "androidx.compose.material3:material3" }

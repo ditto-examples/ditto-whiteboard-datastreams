@@ -16,3 +16,6 @@
 CODE_REVIEW.md
 WHITEBOARD_PLAN.md
 Notes.md
+
+# Optional custom DittoSwift xcframework output; normal builds use the public Swift package.
+whiteboard-apple/Frameworks/

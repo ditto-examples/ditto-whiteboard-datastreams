@@ -1,5 +1,6 @@
 package com.ditto.whiteboard.transport
 
+import com.ditto.kotlin.Ditto
 import com.ditto.whiteboard.domain.BoardOperation
 import com.ditto.whiteboard.domain.LivePreview
 import com.ditto.whiteboard.domain.UserProfile
@@ -18,6 +19,14 @@ interface WhiteboardTransport : AutoCloseable {
   val events: Flow<TransportEvent>
   val diagnostics: StateFlow<TransportDiagnostics>
   val requiredPermissions: List<String> get() = emptyList()
+
+  /**
+   * The live Ditto instance behind this transport, exposed so diagnostics UIs (the
+   * presence graph viewer) can subscribe to `presence.observe()` and read
+   * `system:data_sync_info` like Edge Studio does. Null for the in-memory transport,
+   * which has no SDK behind it.
+   */
+  val rawDitto: Ditto? get() = null
 
   suspend fun start(profile: UserProfile)
   /** Atomically reserves the operation in the authoritative reconciliation log. */

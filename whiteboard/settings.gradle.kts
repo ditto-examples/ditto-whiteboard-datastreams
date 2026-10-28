@@ -11,6 +11,7 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
+
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
@@ -31,3 +32,7 @@ plugins {
 
 rootProject.name = "Whiteboard"
 include(":app")
+include(":anvil-tokens")
+project(":anvil-tokens").projectDir = file("../anvil/android/anvil-tokens")
+include(":anvil-material3")
+project(":anvil-material3").projectDir = file("../anvil/android/anvil-material3")

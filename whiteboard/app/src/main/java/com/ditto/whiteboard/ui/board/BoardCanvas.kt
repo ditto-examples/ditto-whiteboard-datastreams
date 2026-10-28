@@ -1,6 +1,7 @@
 package com.ditto.whiteboard.ui.board
 
 import android.graphics.Paint
+import android.graphics.Typeface
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -56,6 +57,7 @@ import com.ditto.whiteboard.domain.BOARD_WIDTH
 import com.ditto.whiteboard.domain.DEFAULT_ERASER_RADIUS
 import com.ditto.whiteboard.domain.DEFAULT_STROKE_WIDTH
 import com.ditto.whiteboard.domain.BoardObject
+import com.ditto.whiteboard.domain.BoardTextFont
 import com.ditto.whiteboard.domain.BoardState
 import com.ditto.whiteboard.domain.DrawingTool
 import com.ditto.whiteboard.domain.LivePreview
@@ -77,6 +79,14 @@ private const val REMOTE_PREVIEW_ALPHA = 0.55f
 private const val LOCAL_PREVIEW_ALPHA = 0.72f
 private const val LIVE_PREVIEW_SEGMENT_POINTS = 32
 private const val MAX_ACTIVE_STROKE_POINTS = 4_096
+
+private val BoardTextFont.typeface: Typeface
+  get() = when (this) {
+    BoardTextFont.System -> Typeface.DEFAULT
+    BoardTextFont.Rounded -> Typeface.create("sans-serif-rounded", Typeface.NORMAL)
+    BoardTextFont.Serif -> Typeface.SERIF
+    BoardTextFont.Monospaced -> Typeface.MONOSPACE
+  }
 
 private data class CachedBoardObject(
   val value: BoardObject,
@@ -101,7 +111,10 @@ fun BoardCanvas(
   connectivityMessage: String? = null,
   editingEnabled: Boolean = true,
 ) {
-  val boardDescription = stringResource(R.string.board_canvas_description)
+  val boardDescription = stringResource(
+    if (tool == DrawingTool.Hand) R.string.board_canvas_hand_description
+    else R.string.board_canvas_description,
+  )
   var viewport by remember { mutableStateOf(BoardViewport()) }
   val activePoints = remember { mutableStateListOf<LogicalPoint>() }
   val activePath = remember { Path() }
@@ -129,6 +142,7 @@ fun BoardCanvas(
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
               color = text.colorArgb
               textSize = text.size.toFloat()
+              typeface = text.font.typeface
             }
           },
         ).also { renderCache[boardObject.id] = it }
@@ -166,7 +180,7 @@ fun BoardCanvas(
           awaitEachGesture {
           val down = awaitFirstDown(requireUnconsumed = false)
           val gestureId = UUID.randomUUID().toString()
-          var drawing = editingEnabled &&
+          var drawing = tool != DrawingTool.Hand && editingEnabled &&
             viewport.containsBoardPoint(down.position.x, down.position.y)
           activePoints.clear()
           activePath.reset()
@@ -191,6 +205,12 @@ fun BoardCanvas(
                 .withZoom(viewport.zoom * event.calculateZoom(), centroid.x, centroid.y)
                 .panBy(panDelta.x, panDelta.y)
               event.changes.forEach { it.consume() }
+            } else if (tool == DrawingTool.Hand) {
+              event.changes.firstOrNull { it.positionChanged() }?.let { change ->
+                val delta = change.position - change.previousPosition
+                viewport = viewport.panBy(delta.x, delta.y)
+                change.consume()
+              }
             } else if (drawing) {
               event.changes.firstOrNull { it.positionChanged() }?.let { change ->
                 val point = viewport.logicalPoint(change.position.x, change.position.y)
@@ -211,10 +231,11 @@ fun BoardCanvas(
                       activePath.lineTo(point.x.toFloat(), point.y.toFloat())
                     }
                   }
-                  else -> {
+                  DrawingTool.Line, DrawingTool.Rectangle, DrawingTool.Ellipse, DrawingTool.Text -> {
                     if (activePoints.isEmpty()) activePoints += point
                     if (activePoints.size == 1) activePoints += point else activePoints[1] = point
                   }
+                  DrawingTool.Hand -> Unit
                 }
                 onPreview(gestureId, activePoints)
                 change.consume()
@@ -419,6 +440,7 @@ private fun DrawScope.drawPreview(
       drawOval(color, Offset(minOf(first.x, last.x).toFloat(), minOf(first.y, last.y).toFloat()), Size(abs(last.x - first.x).toFloat(), abs(last.y - first.y).toFloat()), style = Stroke(DEFAULT_STROKE_WIDTH.toFloat()))
     }
     DrawingTool.Text -> drawCircle(color, 12f, points.first().offset)
+    DrawingTool.Hand -> Unit
   }
 }
 

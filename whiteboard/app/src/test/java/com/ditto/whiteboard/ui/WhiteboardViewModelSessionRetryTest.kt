@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.resetMain
+import java.util.concurrent.CopyOnWriteArrayList
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -79,7 +80,10 @@ class WhiteboardViewModelSessionRetryTest {
       sessionProvider = { session },
       messages = messages,
     )
-    val observed = mutableListOf<BoardUiState>()
+    // The unconfined collector may append while the polling assertion reads the
+    // stream. A regular MutableList made this retry test intermittently throw
+    // ConcurrentModificationException on CI instead of asserting its contract.
+    val observed = CopyOnWriteArrayList<BoardUiState>()
     val collector = scope.launch { viewModel.uiState.toList(observed) }
 
     viewModel.startSession("Ada", com.ditto.whiteboard.ui.WHITEBOARD_COLORS.first())

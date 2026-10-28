@@ -42,8 +42,7 @@ the degraded state in its banner and troubleshooting screen.
 The app follows the official v5 install guidance and depends on the Kotlin
 Multiplatform root module `com.ditto:ditto-kotlin`; Gradle resolves the
 platform-specific Android variant from its module metadata. The version catalog
-pins the public SDK to `5.2.0-rc.2`, the latest 5.2.0 Kotlin artifact available
-from Maven Central.
+pins the public SDK to `5.2.0`, matching the Apple app.
 
 ## Apple app (iOS, iPadOS, macOS)
 

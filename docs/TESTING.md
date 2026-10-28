@@ -38,10 +38,9 @@ approved references. Do not regenerate references locally.
 
 ## Apple verification
 
-Android pins the public Ditto Kotlin SDK to `5.2.0-rc.2`, the latest 5.2.0
-artifact available from Maven Central. Apple pins the public DittoSwiftPackage
-to stable `5.2.0`. Run the Swift package tests on macOS, including WhiteboardKit's
-real SDK transport integration tests:
+Both platforms pin their public Ditto SDK to stable `5.2.0`. Run the Swift
+package tests on macOS, including WhiteboardKit's real SDK transport integration
+tests:
 
 ```bash
 cd whiteboard-apple/Packages/WhiteboardCore

@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ditto.whiteboard.R
+import com.ditto.whiteboard.transport.PeerPing
 import com.ditto.whiteboard.transport.PeerPingException
 import com.ditto.whiteboard.transport.PeerPingFailure
 import com.ditto.whiteboard.transport.TransportDiagnostics
@@ -102,7 +103,7 @@ fun PeerPingCard(diagnostics: TransportDiagnostics, onPing: suspend (String, (Do
       }
       testedPeer?.let { Text(stringResource(R.string.ping_results_peer, it.takeLast(8))) }
       samples.forEachIndexed { index, rtt -> Text(stringResource(R.string.ping_sample, index + 1, rtt)) }
-      if (samples.isNotEmpty()) Text(stringResource(R.string.ping_verified, samples.size))
+      if (samples.isNotEmpty()) Text(stringResource(R.string.ping_verified, samples.size, PeerPing.COUNT))
       outcome?.let { Text(stringResource(it)) }
       Text(stringResource(R.string.ping_scope), style = MaterialTheme.typography.bodySmall)
     }

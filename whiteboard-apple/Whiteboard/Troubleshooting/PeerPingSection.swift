@@ -56,7 +56,7 @@ struct PeerPingSection: View {
           LabeledContent("Echo \(index + 1)", value: "\(rtt.formatted(.number.precision(.fractionLength(2)))) ms")
         }
         if !samples.isEmpty {
-          Text("\(samples.count) of 5 echoes verified")
+          Text("\(samples.count) of \(PeerPing.count) echoes verified")
             .font(.footnote)
         }
       }

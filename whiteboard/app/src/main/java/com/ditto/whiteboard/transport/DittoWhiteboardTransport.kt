@@ -482,9 +482,9 @@ class DittoWhiteboardTransport(
       }
       outboxVisibility.enable()
       ditto.sync.start()
+      // Peer ping is diagnostic-only: a topic bind failure must never take the board offline.
       try { pingService.start() } catch (error: Exception) {
-        ditto.sync.stop()
-        throw error
+        Log.w("DittoWhiteboard", "Peer ping topic unavailable; nearby sync continues", error)
       }
       nearbyNetworkingRunning = true
       diagnosticsState.update { it.copy(running = true) }

@@ -114,6 +114,7 @@ and Swift/Android interoperability checks.
 - [Architecture and Data Streams walkthrough](docs/ARCHITECTURE.md) — layers,
   two-topic topology, reconciliation, and late-join sequence.
 - [Peer ping](docs/PEER_PING.md) — the troubleshooting tool, wire format, and result interpretation.
+  - [Testing peer ping locally](docs/PEER_PING_LOCAL_TESTING.md) — two-device quickstart, scenarios, and log capture.
 - [Testing](docs/TESTING.md) — test layers, commands, CI, and physical-device
   acceptance.
 - [Release builds](docs/RELEASING.md) — R8, signing, AAB output, native

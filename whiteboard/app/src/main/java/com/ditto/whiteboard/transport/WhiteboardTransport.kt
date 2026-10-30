@@ -28,6 +28,10 @@ interface WhiteboardTransport : AutoCloseable {
    */
   val rawDitto: Ditto? get() = null
 
+  suspend fun ping(peerKey: String, onSample: (Double) -> Unit) {
+    throw PeerPingException(PeerPingFailure.Unavailable)
+  }
+
   suspend fun start(profile: UserProfile)
   /** Atomically reserves the operation in the authoritative reconciliation log. */
   suspend fun sendReliable(operation: BoardOperation): Boolean

@@ -73,6 +73,11 @@ final class AppModel {
     transportProvider()?.observePresenceGraph(handler) ?? .inactive
   }
 
+  func ping(peerKey: String, onSample: @escaping @Sendable (Double) async -> Void) async throws {
+    guard let transport = transportProvider() else { throw PeerPingError.unavailable }
+    try await transport.ping(peerKey: peerKey, onSample: onSample)
+  }
+
   /// Best-effort `system:data_sync_info` rows keyed by peer key (last-known on
   /// failure for the Ditto transport; empty when no transport exists yet).
   func peerSyncStatus() async -> [String: PeerSyncStatus] {

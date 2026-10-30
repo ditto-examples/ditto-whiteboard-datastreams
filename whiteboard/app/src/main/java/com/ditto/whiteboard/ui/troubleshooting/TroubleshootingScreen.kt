@@ -61,6 +61,7 @@ fun TroubleshootingScreen(
   presenceGraphState: PresenceGraphUiState,
   onBack: () -> Unit,
   modifier: Modifier = Modifier,
+  onPing: (suspend (String, (Double) -> Unit) -> Unit)? = null,
   embedded: Boolean = false,
 ) {
   var directOnly by rememberSaveable { mutableStateOf(true) }
@@ -117,6 +118,7 @@ fun TroubleshootingScreen(
         diagnostics.connectivityMessage?.let {
           Text(it, Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
         }
+        if (onPing != null) PeerPingCard(diagnostics, onPing)
         DebugTransportsSection(Modifier.padding(top = 8.dp))
         PresenceGraphView(
           peersUiState = presenceGraphState,

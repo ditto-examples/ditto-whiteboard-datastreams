@@ -115,6 +115,7 @@ fun BoardScreen(
   onCommit: (String, List<LogicalPoint>, String) -> Unit,
   onClear: () -> Unit,
   modifier: Modifier = Modifier,
+  onPing: (suspend (String, (Double) -> Unit) -> Unit)? = null,
   onCommitText: (String, List<LogicalPoint>, String, BoardTextFont, Int) -> Unit = { gestureId, points, text, _, _ ->
     onCommit(gestureId, points, text)
   },
@@ -197,6 +198,7 @@ fun BoardScreen(
               profile = profile,
               profileErrorMessage = state.errorMessage,
               presenceGraphState = presenceGraphState,
+              onPing = onPing,
             )
           }
         }
@@ -218,6 +220,7 @@ fun BoardScreen(
           profile = profile,
           profileErrorMessage = state.errorMessage,
           presenceGraphState = presenceGraphState,
+          onPing = onPing,
         )
       }
     }

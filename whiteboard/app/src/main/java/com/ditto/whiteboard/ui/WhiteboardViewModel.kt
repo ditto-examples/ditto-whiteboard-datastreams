@@ -116,6 +116,12 @@ class WhiteboardViewModel(
         .also { ownedSession = it }
     }
 
+  suspend fun ping(peerKey: String, onSample: (Double) -> Unit) {
+    val active = sessionState.value
+      ?: throw com.ditto.whiteboard.transport.PeerPingException(com.ditto.whiteboard.transport.PeerPingFailure.Unavailable)
+    active.ping(peerKey, onSample)
+  }
+
   fun startSession(displayName: String, colorArgb: Int) {
     val normalizedColor = normalizeWhiteboardColor(colorArgb)
     if (!colorSeeded) {

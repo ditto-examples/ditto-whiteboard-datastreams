@@ -77,6 +77,8 @@ class BoardSession(
 ) : AutoCloseable {
   val localPeerKey: String get() = transport.localPeerKey
 
+  suspend fun ping(peerKey: String, onSample: (Double) -> Unit) = transport.ping(peerKey, onSample)
+
   /** The live Ditto instance for the presence-graph diagnostics UI, or null in-memory. */
   val rawDitto: com.ditto.kotlin.Ditto? get() = transport.rawDitto
   private var clock: OperationClock? = null

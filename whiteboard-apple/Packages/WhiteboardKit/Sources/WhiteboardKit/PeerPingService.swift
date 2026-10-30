@@ -9,6 +9,7 @@ final class PeerPingService: @unchecked Sendable {
   private let lock = NSLock()
   private var acceptor: DittoAcceptor?
   private var sessions: [UUID: PingConnection] = [:]
+  private var responderTasks: [UUID: Task<Void, Never>] = [:]
   private var generation = 0
   private var running = false
   private var clientRunning = false
@@ -17,42 +18,57 @@ final class PeerPingService: @unchecked Sendable {
 
   func start() throws {
     // Called serially by the transport lifecycle coordinator.
-    let epoch = lock.withLock { generation }
-    guard !lock.withLock({ running }) else { return }
-    let binding = try ditto.dataStreams.bindTopic(PeerPing.topic, reliability: .reliable) { [weak self] candidate in
-      guard let self, let (id, connection) = try? reserve() else { return }
-      do {
-        let stream = try candidate.open { inbound in
-          guard let data = try? inbound.payload else { connection.close(); return }
-          connection.receive(data)
-        }
-        guard connection.attach(stream) else { release(id, connection); return }
-        Task { [self] in
-          let monitor = Task {
-            _ = try? await stream.waitUntilClosed()
-            connection.close()
+    let epoch = lock.withLock { () -> Int? in
+      guard !running else { return nil }
+      // Mark running before binding so candidates delivered during bindTopic can be reserved.
+      running = true
+      return generation
+    }
+    guard let epoch else { return }
+    let binding: DittoAcceptor
+    do {
+      binding = try ditto.dataStreams.bindTopic(PeerPing.topic, reliability: .reliable) { [weak self] candidate in
+        guard let self, let (id, connection) = try? reserve() else { return }
+        do {
+          let stream = try candidate.open { inbound in
+            // The payload handler runs on the SDK driver thread; never close the stream there.
+            guard let data = try? inbound.payload else { connection.fail(); return }
+            connection.receive(data)
           }
-          defer { monitor.cancel(); release(id, connection) }
-          do {
-            // Idle clients cannot retain a responder forever.
-            for _ in 0..<100 {
-              guard let payload = try await withTimeout(milliseconds: 15_000, {
-                var iterator = connection.messages.makeAsyncIterator()
-                return await iterator.next()
-              }) ?? nil else { break }
-              guard payload.count <= (try stream.maxSendSize) else { break }
-              try stream.sendAndForget(payload)
+          guard connection.attach(stream) else { release(id, connection); return }
+          let task = Task { [self] in
+            let monitor = Task {
+              _ = try? await stream.waitUntilClosed()
+              connection.close()
             }
-          } catch { /* Closing or pausing the transport ends this diagnostic session. */ }
-        }
-      } catch { release(id, connection) }
+            defer { monitor.cancel(); release(id, connection) }
+            do {
+              // Idle clients cannot retain a responder forever.
+              for _ in 0..<100 {
+                guard let payload = try await withTimeout(milliseconds: 15_000, {
+                  var iterator = connection.messages.makeAsyncIterator()
+                  return await iterator.next()
+                }) ?? nil else { break }
+                guard payload.count <= (try stream.maxSendSize) else { break }
+                try stream.sendAndForget(payload)
+              }
+            } catch { /* Closing or pausing the transport ends this diagnostic session. */ }
+          }
+          // A task that completes before this line stays registered until the next stop(),
+          // which cancels and clears it; release() cannot see it yet either way.
+          lock.withLock { responderTasks[id] = task }
+        } catch { release(id, connection) }
+      }
+    } catch {
+      lock.withLock { running = false }
+      throw error
     }
     let installed = lock.withLock {
       guard generation == epoch else { return false }
       acceptor = binding
-      running = true
       return true
     }
+    // A concurrent stop() already reset running; close the late binding instead of keeping it.
     if !installed { binding.close(); throw PeerPingError.unavailable }
   }
 
@@ -60,13 +76,15 @@ final class PeerPingService: @unchecked Sendable {
     let resources = lock.withLock {
       running = false
       generation += 1
-      let resources = (acceptor, Array(sessions.values))
+      let resources = (acceptor, Array(sessions.values), Array(responderTasks.values))
       acceptor = nil
       sessions.removeAll()
+      responderTasks.removeAll()
       return resources
     }
     resources.0?.close()
     resources.1.forEach { $0.close() }
+    resources.2.forEach { $0.cancel() }
   }
 
   func ping(peerKey: String, onSample: @escaping @Sendable (Double) async -> Void) async throws {
@@ -85,7 +103,7 @@ final class PeerPingService: @unchecked Sendable {
         reliability: .reliable, timeoutMs: 5_000
       ) { candidate in
         try candidate.open { inbound in
-          guard let data = try? inbound.payload else { connection.close(); return }
+          guard let data = try? inbound.payload else { connection.fail(); return }
           connection.receive(data)
         }
       }
@@ -133,7 +151,10 @@ final class PeerPingService: @unchecked Sendable {
 
   private func release(_ id: UUID, _ connection: PingConnection) {
     connection.close()
-    _ = lock.withLock { sessions.removeValue(forKey: id) }
+    lock.withLock {
+      sessions.removeValue(forKey: id)
+      responderTasks.removeValue(forKey: id)
+    }
   }
 }
 
@@ -148,9 +169,15 @@ private final class PingConnection: @unchecked Sendable {
     (messages, messagesContinuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingOldest(1))
   }
 
+  /// Ends message delivery without touching the stream; safe to call from the SDK's
+  /// connection driver thread. The consuming task closes the DittoStream off that thread.
+  func fail() {
+    messagesContinuation.finish()
+  }
+
   func receive(_ data: Data) {
-    guard (8...PeerPing.maximumPayloadSize).contains(data.count) else { close(); return }
-    if case .dropped = messagesContinuation.yield(data) { close() }
+    guard (8...PeerPing.maximumPayloadSize).contains(data.count) else { fail(); return }
+    if case .dropped = messagesContinuation.yield(data) { fail() }
   }
 
   func attach(_ value: DittoStream) -> Bool {

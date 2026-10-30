@@ -227,6 +227,6 @@
     <string name="ping_failed">Ping failed. Check nearby connectivity and try again.</string>
     <string name="ping_results_peer">Results for peer %1$s</string>
     <string name="ping_sample">Echo %1$d: %2$.2f ms</string>
-    <string name="ping_verified">%1$d of 5 echoes verified</string>
+    <string name="ping_verified">%1$d of %2$d echoes verified</string>
     <string name="ping_scope">Tests a reliable Data Stream, not a specific radio or board synchronization. Older apps may not support ping.</string>
 </resources>

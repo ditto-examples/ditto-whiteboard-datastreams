@@ -10,6 +10,8 @@ import com.ditto.kotlin.open
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -25,43 +27,60 @@ internal class PeerPingService(private val ditto: Ditto, private val scope: Coro
   private var running = false
   private var acceptor: DittoAcceptor? = null
   private val sessions = mutableSetOf<PingConnection>()
+  private val responderJobs = mutableSetOf<Job>()
   private val clientLock = Mutex()
 
   fun start() {
-    val epoch = synchronized(lock) { generation }
-    if (synchronized(lock) { running }) return
-    val binding = ditto.dataStreams.bindTopic(PeerPing.TOPIC, DittoReliability.Reliable) { candidate ->
-      val connection = try { reserve() } catch (_: PeerPingException) { return@bindTopic }
-      try {
-        val stream = candidate.open { inbound -> connection.receive(inbound.payload()) }
-        if (!connection.attach(stream)) { release(connection); return@bindTopic }
-        val job = scope.launch(Dispatchers.IO) {
-          val monitor = launch {
-            try { stream.waitUntilClosed() }
-            catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { /* The stream may already be closed by local teardown. */ }
-            finally { connection.close() }
+    val epoch = synchronized(lock) {
+      if (running) return
+      // Mark running before binding so candidates delivered during bindTopic can be reserved.
+      running = true
+      generation
+    }
+    val binding = try {
+      ditto.dataStreams.bindTopic(PeerPing.TOPIC, DittoReliability.Reliable) { candidate ->
+        val connection = try { reserve() } catch (_: PeerPingException) { return@bindTopic }
+        try {
+          val stream = candidate.open { inbound -> connection.receive(inbound.payload()) }
+          if (!connection.attach(stream)) { release(connection); return@bindTopic }
+          val job = scope.launch(Dispatchers.IO) {
+            val monitor = launch {
+              try { stream.waitUntilClosed() }
+              catch (cancelled: CancellationException) { throw cancelled }
+              catch (_: Exception) { /* The stream may already be closed by local teardown. */ }
+              finally { connection.close() }
+            }
+            try {
+              PeerPing.respond(
+                receive = { connection.messages.receiveCatching().getOrNull() },
+                send = { payload ->
+                  if (payload.size.toLong() > stream.maxSendSize()) throw PeerPingException(PeerPingFailure.TooLarge)
+                  // Fire-and-forget matches the Swift responder; a stalled suspending send
+                  // must not hold the session past its idle budget.
+                  stream.sendAndForget(payload)
+                },
+              )
+            } catch (cancelled: CancellationException) {
+              throw cancelled
+            } catch (_: Exception) {
+              // A disconnect can race teardown. End this diagnostic session, not the app.
+            } finally { monitor.cancel(); release(connection) }
           }
-          try {
-            PeerPing.respond(
-              receive = { connection.messages.receiveCatching().getOrNull() },
-              send = { payload ->
-                if (payload.size.toLong() > stream.maxSendSize()) throw PeerPingException(PeerPingFailure.TooLarge)
-                stream.send(payload)
-              },
-            )
-          } finally { monitor.cancel(); release(connection) }
-        }
-        job.invokeOnCompletion { release(connection) }
-      } catch (_: Exception) { release(connection) }
+          synchronized(lock) { responderJobs += job }
+          job.invokeOnCompletion {
+            synchronized(lock) { responderJobs -= job }
+            runCatching { release(connection) }
+          }
+        } catch (_: Exception) { release(connection) }
+      }
+    } catch (error: Exception) {
+      synchronized(lock) { running = false }
+      throw error
     }
     val installed = synchronized(lock) {
-      if (generation != epoch) false else {
-        acceptor = binding
-        running = true
-        true
-      }
+      if (generation != epoch) false else { acceptor = binding; true }
     }
+    // A concurrent stop() already reset running; close the late binding instead of keeping it.
     if (!installed) { binding.close(); throw PeerPingException(PeerPingFailure.Unavailable) }
   }
 
@@ -69,13 +88,15 @@ internal class PeerPingService(private val ditto: Ditto, private val scope: Coro
     val resources = synchronized(lock) {
       running = false
       generation += 1
-      val resources = acceptor to sessions.toList()
+      val resources = Triple(acceptor, sessions.toList(), responderJobs.toList())
       acceptor = null
       sessions.clear()
+      responderJobs.clear()
       resources
     }
     resources.first?.close()
     resources.second.forEach { it.close() }
+    resources.third.forEach { it.cancel() }
   }
 
   suspend fun ping(peerKey: String, onSample: (Double) -> Unit) = coroutineScope {
@@ -137,7 +158,12 @@ private class PingConnection {
   private var closed = false
 
   fun receive(bytes: ByteArray) {
-    if (bytes.size !in 8..PeerPing.MAX_PAYLOAD_SIZE || !messages.trySend(bytes).isSuccess) close()
+    // Called on the SDK connection driver thread, which must not block: never close the
+    // DittoStream here. Closing only the message channel lets the consuming coroutine end
+    // the session and close the stream off this thread.
+    if (bytes.size !in 8..PeerPing.MAX_PAYLOAD_SIZE || !messages.trySend(bytes).isSuccess) {
+      messages.close()
+    }
   }
 
   fun attach(value: DittoStream): Boolean {

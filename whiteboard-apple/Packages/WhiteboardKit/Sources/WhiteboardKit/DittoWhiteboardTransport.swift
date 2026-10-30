@@ -504,10 +504,8 @@ public final class DittoWhiteboardTransport: WhiteboardTransport, @unchecked Sen
       outboxVisibility.enable()
       // NGN sync.start() synchronously spawns the UDP transport; see runOnLargeStack.
       try await runOnLargeStack { [ditto] in try ditto.sync.start() }
-      do { try pingService.start() } catch {
-        ditto.sync.stop()
-        throw error
-      }
+      // Peer ping is diagnostic-only: a topic bind failure must never take the board offline.
+      try? pingService.start()
       withState { $0.nearbyNetworkingRunning = true }
       updateDiagnostics { current in
         var next = current

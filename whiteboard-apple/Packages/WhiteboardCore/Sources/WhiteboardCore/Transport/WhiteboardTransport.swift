@@ -112,10 +112,14 @@ public protocol WhiteboardTransport: Sendable {
   /// local store cannot answer (the Ditto identity is SmallPeersOnly offline, but the
   /// query still runs against the local store).
   func syncStatusByPeerKey() async -> [String: PeerSyncStatus]
+  func ping(peerKey: String, onSample: @escaping @Sendable (Double) async -> Void) async throws
   func close()
 }
 
 extension WhiteboardTransport {
+  public func ping(peerKey: String, onSample: @escaping @Sendable (Double) async -> Void) async throws {
+    throw PeerPingError.unavailable
+  }
   public var requiredPermissions: [String] { [] }
   public func resolvePermissions(allGranted: Bool) {}
   public func setForeground(_ isForeground: Bool) {}

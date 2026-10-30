@@ -135,3 +135,13 @@ for f in architecture data-streams-topology snapshot-sequence; do
   rsvg-convert -z 2 "$f.svg" -o "$f.png"
 done
 ```
+
+## Diagnostic ping topic
+
+A third, independent reliable topic, `ping`, supports the optional troubleshooting
+tool. It carries no board envelopes or mutations. `PeerPingService` in each SDK
+transport owns its acceptor, bounded receive queues and short-lived streams;
+`PeerPing` defines the shared request and echo validation. The app presents
+samples through the transport seam, so local-preview implementations explicitly
+report ping as unavailable. See [Peer ping](PEER_PING.md) for the wire contract,
+bounds, lifecycle and result interpretation.

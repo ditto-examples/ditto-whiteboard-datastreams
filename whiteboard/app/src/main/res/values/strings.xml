@@ -208,4 +208,25 @@
     <string name="presence_focus_this_peer">Focus this peer</string>
     <string name="presence_whiteboard_link">Whiteboard link</string>
     <string name="presence_wb_transports">Transports</string>
+    <string name="ping_title">Peer ping</string>
+    <string name="ping_description">Send five small requests and verify their echoes. Round-trip time includes app and network overhead.</string>
+    <string name="ping_select_peer">Select a peer</string>
+    <string name="ping_no_peers">No nearby peers. Open another Whiteboard app with the same database and allow nearby access.</string>
+    <string name="ping_unavailable">Peer ping needs nearby sync. Configure credentials, allow nearby access, and keep both apps open.</string>
+    <string name="ping_waiting">Waiting for echo…</string>
+    <string name="ping_cancel">Cancel ping</string>
+    <string name="ping_run">Run ping</string>
+    <string name="ping_complete">Ping completed.</string>
+    <string name="ping_cancelled">Ping cancelled.</string>
+    <string name="ping_busy">A ping is already running.</string>
+    <string name="ping_connection_failed">Could not connect. Keep the other app open and check that it supports Peer ping.</string>
+    <string name="ping_timeout">No echo within 5 seconds. The peer may have disconnected or paused.</string>
+    <string name="ping_closed">The ping stream closed before the echo arrived.</string>
+    <string name="ping_mismatch">The response did not match the request.</string>
+    <string name="ping_too_large">The stream cannot carry the ping payload.</string>
+    <string name="ping_failed">Ping failed. Check nearby connectivity and try again.</string>
+    <string name="ping_results_peer">Results for peer %1$s</string>
+    <string name="ping_sample">Echo %1$d: %2$.2f ms</string>
+    <string name="ping_verified">%1$d of 5 echoes verified</string>
+    <string name="ping_scope">Tests a reliable Data Stream, not a specific radio or board synchronization. Older apps may not support ping.</string>
 </resources>

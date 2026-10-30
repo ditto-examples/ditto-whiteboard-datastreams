@@ -192,6 +192,11 @@ class DittoWhiteboardTransport(
     scope,
   ).apply { setOfflineOnlyLicenseToken(offlineLicenseToken) }
 
+  private val pingService = PeerPingService(ditto, scope)
+
+  override suspend fun ping(peerKey: String, onSample: (Double) -> Unit) =
+    pingService.ping(peerKey, onSample)
+
   override val localPeerKey: String = ditto.presence.graph.localPeer.peerKey
   override val rawDitto: Ditto get() = ditto
   override val requiredPermissions: List<String> = DittoSyncPermissions(context).requiredPermissions()
@@ -477,6 +482,10 @@ class DittoWhiteboardTransport(
       }
       outboxVisibility.enable()
       ditto.sync.start()
+      try { pingService.start() } catch (error: Exception) {
+        ditto.sync.stop()
+        throw error
+      }
       nearbyNetworkingRunning = true
       diagnosticsState.update { it.copy(running = true) }
       beginReadinessWindow()
@@ -582,6 +591,7 @@ class DittoWhiteboardTransport(
   }
 
   private fun pauseNearbyNetworking() {
+    pingService.stop()
     connectJobs.values.forEach(Job::cancel)
     connectJobs.clear()
     recoveryJobs.values.forEach(Job::cancel)
@@ -2419,6 +2429,7 @@ class DittoWhiteboardTransport(
     isNearbyLifecycleActive(started, foreground, nearbyNetworkingRunning, localOnly)
 
   override fun close() {
+    pingService.stop()
     // Ordered per SKILL.md: cancel connection/retry jobs, close streams, close acceptors,
     // cancel the remaining workers, then close Ditto last so no coroutine touches a closed endpoint.
     started = false

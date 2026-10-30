@@ -96,3 +96,33 @@ rather than treating unmeasured targets as passed.
   user-entered or dialog state.
 - Every protocol limit or recovery fix needs a regression test reproducing the
   rejected input or lost-message shape.
+
+## Peer ping checks
+
+The host suites include `PeerPingTests` (Swift) and `PeerPingTest` (Kotlin): a
+shared byte-order fixture, a valid echo, corruption in both sequence and padding,
+truncation, failure propagation and cancellation. `PeerPingCardTest` exercises
+selection, successful results, partial timeout results, cancellation and disabled
+local-preview controls. Kotlin responder tests cover idle expiry, message/size
+limits, cancellation and disconnect/send failure containment. Run them with the package/JVM
+commands above. Apple SDK-backed transport tests additionally exercise repeated
+ping runs in both directions and board traffic after ping.
+
+Before shipping, perform these checks with an Apple device and Android device:
+
+1. Run five pings Apple → Android and Android → Apple. Each run should show five
+   verified echoes and nonnegative RTTs, with the correct target peer key.
+2. Draw while pinging. Both boards should continue receiving reliable operations
+   and live previews. Repeat the run and reverse direction without restarting.
+3. Cancel a run, navigate away, and background either app. No ping stream should
+   remain active; returning to the foreground should allow a fresh run.
+4. Stop the remote app during a run. Expect closure or a response timeout, with
+   no successful RTT for the unacknowledged request.
+5. Try a peer running an older build without the `ping` topic. It should report a
+   connection failure, not a successful sample or an endless spinner.
+6. Verify local-preview and no-peer states explain why ping cannot run.
+
+For controlled fault injection, use a responder that returns a changed/truncated
+payload or deliberately withholds its echo. Expect mismatch or a five-second
+response timeout, respectively. The tool's wire format and limits are documented
+in [Peer ping](PEER_PING.md).

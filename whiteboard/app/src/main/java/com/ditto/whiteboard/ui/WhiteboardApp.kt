@@ -125,6 +125,7 @@ internal fun WhiteboardApp(
         BoardScreen(
           state = boardState,
           onSelectTool = viewModel::selectTool,
+          onPing = viewModel::ping,
           onSelectColor = viewModel::selectColor,
           onPreview = viewModel::preview,
           onCommit = viewModel::commit,

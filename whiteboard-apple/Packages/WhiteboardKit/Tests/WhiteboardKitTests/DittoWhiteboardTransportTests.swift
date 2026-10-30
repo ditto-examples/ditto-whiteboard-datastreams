@@ -147,6 +147,14 @@ func reliableOperationDeliveryAndLivePreview() async throws {
   try await pair.startClient()
   try await pair.awaitFullyConnected()
 
+  // Ping uses its own stream in either direction and must leave the board streams usable.
+  let samples = PingSampleCollector()
+  try await pair.client.ping(peerKey: pair.serverKey) { await samples.append($0) }
+  try await pair.server.ping(peerKey: pair.clientKey) { await samples.append($0) }
+  try await pair.client.ping(peerKey: pair.serverKey) { await samples.append($0) }
+  #expect(await samples.values.count == 15)
+  #expect(await samples.values.allSatisfy { $0 >= 0 })
+
   let collector = EventCollector()
   let collectTask = Task { await collector.collect(pair.client.events) }
   defer { collectTask.cancel() }
@@ -210,4 +218,28 @@ func snapshotHealsLateJoiner() async throws {
   try await waitUntil("editing ready after hydration") {
     pair.client.currentDiagnostics.editingReady
   }
+}
+
+private actor PingSampleCollector {
+  private(set) var values: [Double] = []
+  func append(_ value: Double) { values.append(value) }
+}
+
+@Test(.timeLimit(.minutes(3)))
+func pingStopsWithNearbyLifecycleAndResumes() async throws {
+  let pair = try await ConnectedPair()
+  defer { pair.close() }
+  try await pair.startServer()
+  try await pair.startClient()
+  try await pair.awaitFullyConnected()
+  pair.client.setForeground(false)
+  try await waitUntil("client networking paused") { !pair.client.currentDiagnostics.running }
+  await #expect(throws: PeerPingError.unavailable) {
+    try await pair.client.ping(peerKey: pair.serverKey) { _ in Issue.record("Paused ping returned a sample") }
+  }
+  pair.client.setForeground(true)
+  try await pair.awaitFullyConnected()
+  let samples = PingSampleCollector()
+  try await pair.client.ping(peerKey: pair.serverKey) { await samples.append($0) }
+  #expect(await samples.values.count == 5)
 }

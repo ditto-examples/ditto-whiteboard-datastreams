@@ -91,12 +91,29 @@ their intended audience.
 The board is process-lifetime state. When every participating process exits, the
 board disappears.
 
+## Peer ping troubleshooting tool
+
+Open the board sidebar and choose **Transport** on Apple or **Troubleshooting**
+on Android. In **Peer ping**, select a discovered peer and press **Run ping**.
+Both devices need this feature, matching database credentials, nearby access,
+and an open, foreground Whiteboard app. Local-preview mode cannot ping.
+
+The tool sends five 64-byte requests over a separate reliable Data Stream and
+prints the round-trip time for each verified echo. A successful result confirms
+that the remote app received and echoed those bytes. It does not certify board
+convergence, identify which radio carried a request, or measure one-way latency.
+You can cancel a run; backgrounding either app closes its ping streams.
+
+See [Peer ping](docs/PEER_PING.md) for the protocol, failure messages, lifecycle,
+and Swift/Android interoperability checks.
+
 ## Documentation map
 
 - [Getting started](docs/GETTING_STARTED.md) — prerequisites, glossary,
   credential setup, first two-device stream, and troubleshooting.
 - [Architecture and Data Streams walkthrough](docs/ARCHITECTURE.md) — layers,
   two-topic topology, reconciliation, and late-join sequence.
+- [Peer ping](docs/PEER_PING.md) — the troubleshooting tool, wire format, and result interpretation.
 - [Testing](docs/TESTING.md) — test layers, commands, CI, and physical-device
   acceptance.
 - [Release builds](docs/RELEASING.md) — R8, signing, AAB output, native

@@ -211,6 +211,12 @@ public final class DittoWhiteboardTransport: WhiteboardTransport, @unchecked Sen
     return body(&state)
   }
 
+  private let pingService: PeerPingService
+
+  public func ping(peerKey: String, onSample: @escaping @Sendable (Double) async -> Void) async throws {
+    try await pingService.ping(peerKey: peerKey, onSample: onSample)
+  }
+
   let knownLog = KnownLogBox()
   let snapshotMaterialMutex = AsyncMutex()
   var cachedSnapshotMaterial: SnapshotMaterial?
@@ -243,6 +249,7 @@ public final class DittoWhiteboardTransport: WhiteboardTransport, @unchecked Sen
     let ditto = try Ditto.openSync(config: config)
     try ditto.setOfflineOnlyLicenseToken(credentials.offlineLicenseToken)
     self.ditto = ditto
+    self.pingService = PeerPingService(ditto: ditto)
     self.transportConfigCustomizer = transportConfigCustomizer
     self.localPeerKey = ditto.presence.graph.localPeer.peerKey
     // Apple needs no runtime permissions for nearby transports; the coordinator starts granted.
@@ -389,6 +396,7 @@ public final class DittoWhiteboardTransport: WhiteboardTransport, @unchecked Sen
       return false
     }
     guard !alreadyClosed else { return }
+    pingService.stop()
     _ = lifecycleCoordinator.requestForeground(false)
     withState { state in
       state.foregroundGeneration += 1
@@ -496,6 +504,10 @@ public final class DittoWhiteboardTransport: WhiteboardTransport, @unchecked Sen
       outboxVisibility.enable()
       // NGN sync.start() synchronously spawns the UDP transport; see runOnLargeStack.
       try await runOnLargeStack { [ditto] in try ditto.sync.start() }
+      do { try pingService.start() } catch {
+        ditto.sync.stop()
+        throw error
+      }
       withState { $0.nearbyNetworkingRunning = true }
       updateDiagnostics { current in
         var next = current
@@ -564,6 +576,7 @@ public final class DittoWhiteboardTransport: WhiteboardTransport, @unchecked Sen
   }
 
   func pauseNearbyNetworking() {
+    pingService.stop()
     withState { state in
       cancelTasks(&state.connectTasks) { _ in true }
       cancelTasks(&state.recoveryTasks) { _ in true }

@@ -57,6 +57,7 @@ fun BoardSidebarPanel(
   profileErrorMessage: String?,
   presenceGraphState: PresenceGraphUiState,
   modifier: Modifier = Modifier,
+  onPing: (suspend (String, (Double) -> Unit) -> Unit)? = null,
 ) {
   Column(modifier.fillMaxWidth()) {
     SingleChoiceSegmentedButtonRow(
@@ -95,6 +96,7 @@ fun BoardSidebarPanel(
           presenceGraphState = presenceGraphState,
           onBack = onDismiss,
           embedded = true,
+          onPing = onPing,
         )
       }
     }

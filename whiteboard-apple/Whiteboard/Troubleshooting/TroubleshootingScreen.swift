@@ -51,6 +51,9 @@ struct TroubleshootingScreen: View {
               .foregroundStyle(colors.foregroundWarning)
           }
         }
+        if let appModel {
+          PeerPingSection(diagnostics: diagnostics, appModel: appModel)
+        }
         Section {
           Toggle("Bluetooth LE", isOn: debugBinding(\.bluetoothLEEnabled))
             .toggleStyle(.ditto)
